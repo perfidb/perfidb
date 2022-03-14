@@ -1,10 +1,10 @@
 mod db;
+mod reader;
+mod transaction;
 
-use std::error::Error;
 use std::io;
-use std::io::stdin;
 use clap::{Parser, Subcommand};
-use crate::db::{Database, Transaction};
+use crate::db::Database;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -16,8 +16,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// List all transactions
+    List {},
     /// Add transactions into database
-    Upsert,
+    Upsert {
+        /// Serialised database file path, in json format
+        file: String
+    },
 }
 
 fn main() {
@@ -26,27 +31,14 @@ fn main() {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Commands::Upsert => {
-            let mut db = Database::new();
-            let transactions = read_csv().unwrap();
+        Commands::List {} => {},
+        Commands::Upsert { file } => {
+            let mut db = Database::load(file.as_str());
+            let transactions = reader::read_transactions(io::stdin());
             for t in transactions {
-                db.upsert(t);
+                db.upsert(&t);
             }
-
-            for t in db.iter() {
-                println!("{:?}", t);
-            }
+            db.save_and_close();
         }
     }
-}
-
-
-fn read_csv() -> Result<Vec<Transaction>, Box<dyn Error>> {
-    let mut transactions :Vec<Transaction> = vec![];
-    let mut rdr = csv::Reader::from_reader(io::stdin());
-    for results in rdr.deserialize() {
-        let t: Transaction = results?;
-        transactions.push(t);
-    }
-    Ok(transactions)
 }
