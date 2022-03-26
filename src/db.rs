@@ -1,6 +1,7 @@
 use std::{fs};
 use std::collections::HashMap;
 use std::path::Path;
+use std::slice::Iter;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use crate::transaction::Transaction;
@@ -21,7 +22,9 @@ pub(crate) struct Database {
     transactions: Vec<TransactionRecord>,
 
     /// key is tag string, value is tag's index
-    tags: HashMap<String, usize>,
+    tag_name_to_id: HashMap<String, usize>,
+
+    tags: Vec<String>,
 
     #[serde(skip_serializing)]
     file_path: Option<String>,
@@ -31,7 +34,8 @@ impl Database {
     pub(crate) fn new(file_path: Option<String>) -> Database {
         Database {
             transactions: vec![],
-            tags: HashMap::new(),
+            tag_name_to_id: HashMap::new(),
+            tags: vec![],
             file_path,
         }
     }
@@ -55,14 +59,15 @@ impl Database {
     pub(crate) fn upsert(&mut self, t: &Transaction) {
         let mut tags = vec![];
         for tag in t.tags.iter() {
-            let tag_id = match self.tags.get(tag.as_str()) {
-                Some(tag_index) => {
-                    *tag_index
+            let tag_id = match self.tag_name_to_id.get(tag.as_str()) {
+                Some(tag_id) => {
+                    *tag_id
                 },
                 None => {
-                    let tag_index = self.tags.len() + 1;
-                    self.tags.insert(tag.into(), tag_index);
-                    tag_index
+                    let tag_id = self.tags.len();
+                    self.tags.push(tag.into());
+                    self.tag_name_to_id.insert(tag.into(), tag_id);
+                    tag_id
                 }
             };
 
@@ -76,6 +81,18 @@ impl Database {
             amount: t.amount,
             tags
         });
+    }
+
+    pub(crate) fn iter(&self) -> Vec<Transaction> {
+        self.transactions.iter().map(|t| {
+            Transaction {
+                account: t.account.clone(),
+                date: t.date,
+                description: t.description.clone(),
+                amount: t.amount,
+                tags: t.tags.iter().map(|tag_id| self.tags.get(*tag_id).unwrap().into()).collect()
+            }
+        }).collect()
     }
 }
 
