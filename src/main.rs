@@ -34,7 +34,20 @@ enum Commands {
 }
 
 fn execute_query(sql: String) {
-    println!("{}", sql);
+    let dialect = GenericDialect {};
+    let ast :Vec<Statement> = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str()).unwrap();
+
+    for statement in ast {
+        if let Statement::Query(query) = statement {
+            if let Query { with, body, order_by, limit, offset, fetch, lock } = *query {
+                if let SetExpr::Select(select) = body {
+                    println!("{:?}", select.projection);
+                    println!("{:?}", select.from);
+                }
+            }
+
+        }
+    }
 }
 
 fn main() {
@@ -51,10 +64,12 @@ fn main() {
                 sql_buffer.push(line);
                 if is_last {
                     execute_query(sql_buffer.join(" "));
+                    sql_buffer.clear();
                 }
             },
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
+                rl.save_history("tmp/history.txt").unwrap();
                 break
             },
             Err(ReadlineError::Eof) => {
