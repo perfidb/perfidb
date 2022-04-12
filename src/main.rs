@@ -15,25 +15,11 @@ use sqlparser::dialect::GenericDialect;
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Cli {
-    #[clap(subcommand)]
-    command: Commands,
+    /// Database file path
+    file: String,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// List all transactions
-    List {
-        /// Serialised database file path, in json format
-        file: String
-    },
-    /// Add transactions into database
-    Upsert {
-        /// Serialised database file path, in json format
-        file: String
-    },
-}
-
-fn execute_query(sql: String) {
+fn execute_query(db: &Database, sql: String) {
     let dialect = GenericDialect {};
     let ast :Vec<Statement> = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str()).unwrap();
 
@@ -43,6 +29,15 @@ fn execute_query(sql: String) {
                 if let SetExpr::Select(select) = body {
                     println!("{:?}", select.projection);
                     println!("{:?}", select.from);
+
+                    let mut table = Table::new();
+                    table.set_header(vec!["Account", "Date", "Description", "Amount", "Tags"]);
+                    for t in db.iter() {
+                        // TODO handle tags
+                        table.add_row(vec![t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), ""]);
+                    }
+
+                    println!("{table}");
                 }
             }
 
@@ -51,6 +46,11 @@ fn execute_query(sql: String) {
 }
 
 fn main() {
+    let cli :Cli = Cli::parse();
+
+    let mut db= Database::load(cli.file.as_str());
+
+
     let mut rl = Editor::<()>::new();
     if rl.load_history("tmp/history.txt").is_err() {
         println!("No previous history.");
@@ -63,7 +63,7 @@ fn main() {
                 let is_last = line.ends_with(";");
                 sql_buffer.push(line);
                 if is_last {
-                    execute_query(sql_buffer.join(" "));
+                    execute_query(&db,sql_buffer.join(" "));
                     sql_buffer.clear();
                 }
             },
@@ -83,32 +83,4 @@ fn main() {
         }
     }
     rl.save_history("tmp/history.txt").unwrap();
-
-
-
-    // let cli = Cli::parse();
-    //
-    // // You can check for the existence of subcommands, and if found use their
-    // // matches just as you would the top level cmd
-    // match &cli.command {
-    //     Commands::List { file } => {
-    //         let mut table = Table::new();
-    //         table.set_header(vec!["Account", "Date", "Description", "Amount", "Tags"]);
-    //         let mut db = Database::load(file.as_str());
-    //         for t in db.iter() {
-    //             // TODO handle tags
-    //             table.add_row(vec![t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), ""]);
-    //         }
-    //
-    //         println!("{table}");
-    //     },
-    //     Commands::Upsert { file } => {
-    //         let mut db = Database::load(file.as_str());
-    //         let transactions = reader::read_transactions(io::stdin());
-    //         for t in transactions {
-    //             db.upsert(&t);
-    //         }
-    //         db.save_and_close();
-    //     }
-    // }
 }
