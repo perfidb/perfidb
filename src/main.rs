@@ -7,9 +7,11 @@ use clap::{Parser, Subcommand};
 use comfy_table::Table;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
-use sqlparser::ast::{Expr, Ident, Query, SetExpr, Statement, Values};
+use sqlparser::ast::{CopyTarget, Expr, Ident, Query, SetExpr, Statement, Values};
 use crate::db::Database;
 use sqlparser::dialect::GenericDialect;
+use crate::reader::CsvRow;
+use crate::transaction::Transaction;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -19,11 +21,24 @@ struct Cli {
     file: String,
 }
 
-fn execute_insert(table_name :&str, values: &Vec<Vec<Expr>>) {
-
+fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget) {
+    match target {
+        CopyTarget::File { filename} => {
+            db.upsert_from_csv(table_name,filename.as_str()).unwrap();
+        },
+        _ => {
+            println!("{:?}", target);
+        }
+    }
 }
 
-fn parse_and_run_sql(db: &Database, sql: String) {
+fn execute_insert(db : &Database, table_name :&str, values: &Vec<Vec<Expr>>) {
+    for v in values {
+        println!("{:?}", v);
+    }
+}
+
+fn parse_and_run_sql(db: &mut Database, sql: String) {
     let dialect = GenericDialect {};
     let ast :Vec<Statement> = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str()).unwrap();
 
@@ -54,11 +69,16 @@ fn parse_and_run_sql(db: &Database, sql: String) {
 
                 match source.body {
                     SetExpr::Values(values) => {
-                        execute_insert(table_name, &values.0);
-                        println!("{:?}", table_name);
+                        execute_insert(&db, table_name, &values.0);
                     },
                     _ => ()
                 }
+            },
+            Statement::Copy { table_name, target, .. } => {
+                // Grab index 0 for now. TODO: make it nicer
+                let table_name :&str = table_name.0[0].value.as_str();
+
+                execute_copy(db, table_name, &target);
             },
             _ => {
 
@@ -88,7 +108,7 @@ fn main() {
                 if is_last {
                     let sql = sql_buffer.join("\n");
                     rl.add_history_entry(sql.trim());
-                    parse_and_run_sql(&db, sql);
+                    parse_and_run_sql(&mut db, sql);
                     sql_buffer.clear();
                 }
             },
