@@ -1,10 +1,8 @@
 use std::{fs};
 use std::collections::HashMap;
 use std::path::Path;
-use std::slice::Iter;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use crate::reader::CsvRow;
 use crate::transaction::Transaction;
 
 /// Internal representation of a transaction record in database
@@ -52,7 +50,7 @@ impl Database {
         }
     }
 
-    pub(crate) fn save_and_close(&self) {
+    pub(crate) fn save(&self) {
         let s = serde_json::to_string(self).unwrap();
         fs::write((&self.file_path).as_ref().unwrap(), s).expect("Unable to write to database file");
     }
@@ -82,20 +80,6 @@ impl Database {
             amount: t.amount,
             tags
         });
-    }
-
-    pub(crate) fn upsert_from_csv(&mut self, account :&str, csv_file: &str) -> Result<u32, csv::Error> {
-        let mut count = 0;
-        let mut rdr = csv::Reader::from_path(csv_file)?;
-        println!("{}", csv_file);
-        for result in rdr.deserialize() {
-            let row: CsvRow = result.unwrap();
-            let t :Transaction = row.into();
-            self.upsert(&t);
-            count += 1;
-        }
-        self.save_and_close();
-        Ok(count)
     }
 
     pub(crate) fn iter(&self) -> Vec<Transaction> {
