@@ -4,11 +4,12 @@ mod transaction;
 
 use std::path::Path;
 use clap::{Parser};
-use comfy_table::Table;
+use comfy_table::{Table, TableComponent};
 use env_logger::Env;
+use log::info;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
-use sqlparser::ast::{CopyOption, CopyTarget, Expr, Query, SetExpr, Statement};
+use sqlparser::ast::{CopyOption, CopyTarget, Expr, Query, SetExpr, Statement, TableFactor};
 use crate::db::Database;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
@@ -65,12 +66,24 @@ fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), ParserError> 
                     Statement::Query(query) => {
                         let Query { with, body, .. } = *query;
                         if let SetExpr::Select(select) = body {
-                            println!("{:?}", select.projection);
-                            println!("{:?}", select.from);
+                            info!("{:?}", select.projection);
+                            info!("{:?}", select.from);
+                            info!("{:?}", select.selection);
+
+                            let mut transactions = vec![];
+
+                            if let TableFactor::Table { name, .. } = &select.from[0].relation {
+                                let table_name = name.to_string();
+                                transactions = db.query(table_name.as_str(), select.selection.unwrap());
+                            }
 
                             let mut table = Table::new();
+                            table.remove_style(TableComponent::HorizontalLines);
+                            table.remove_style(TableComponent::MiddleIntersections);
+                            table.remove_style(TableComponent::LeftBorderIntersections);
+                            table.remove_style(TableComponent::RightBorderIntersections);
                             table.set_header(vec!["Account", "Date", "Description", "Amount", "Tags"]);
-                            for t in db.iter() {
+                            for t in transactions {
                                 // TODO handle tags
                                 table.add_row(vec![t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), ""]);
                             }

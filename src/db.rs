@@ -1,8 +1,10 @@
 use std::{fs};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use chrono::NaiveDateTime;
+use log::info;
 use serde::{Deserialize, Serialize};
+use sqlparser::ast::{BinaryOperator, Expr, Value};
 use crate::transaction::Transaction;
 
 /// Internal representation of a transaction record in database
@@ -92,6 +94,30 @@ impl Database {
                 tags: t.tags.iter().map(|tag_id| self.tags.get(*tag_id).unwrap().into()).collect()
             }
         }).collect()
+    }
+
+    pub(crate) fn query(&self, from: &str, binary_op: Expr) -> Vec<Transaction> {
+        if let Expr::BinaryOp { left, op, right } = binary_op {
+            match op {
+                BinaryOperator::Gt => {
+                    info!("go in");
+                    let s: String = right.to_string();
+                    let amount_limit = s.parse::<f32>().unwrap();
+                    return self.transactions.iter()
+                        .filter(|t| t.amount.abs() > amount_limit)
+                        .map(|t| Transaction {
+                            account: t.account.clone(),
+                            date: t.date,
+                            description: t.description.clone(),
+                            amount: t.amount,
+                            tags: HashSet::new(),
+                        }).collect();
+                },
+                _ => {}
+            }
+        }
+        let transactions = vec![];
+        transactions
     }
 }
 
