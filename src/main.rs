@@ -2,13 +2,13 @@ mod db;
 mod csv_reader;
 mod transaction;
 
-use std::io;
 use std::path::Path;
 use clap::{Parser};
 use comfy_table::Table;
+use env_logger::Env;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
-use sqlparser::ast::{CopyTarget, Expr, Query, SetExpr, Statement};
+use sqlparser::ast::{CopyOption, CopyTarget, Expr, Query, SetExpr, Statement};
 use crate::db::Database;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
@@ -21,11 +21,11 @@ struct Cli {
     file: String,
 }
 
-fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget) {
+fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inverse_amount: bool) {
     match target {
         CopyTarget::File { filename} => {
             let path = Path::new(filename);
-            let result = csv_reader::read_transactions(table_name, path);
+            let result = csv_reader::read_transactions(table_name, path, inverse_amount);
             match result {
                 Ok(transactions) => {
                     for t in transactions {
@@ -92,11 +92,22 @@ fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), ParserError> 
                             _ => ()
                         }
                     },
-                    Statement::Copy { table_name, target, .. } => {
+                    Statement::Copy { table_name, target, options, .. } => {
                         // Grab index 0 for now. TODO: make it nicer
                         let table_name :&str = table_name.0[0].value.as_str();
 
-                        execute_copy(db, table_name, &target);
+                        // should we inverse amount value
+                        let mut inverse_amount = false;
+                        for option in options {
+                            if let CopyOption::Format(ident) = option {
+                                let format_value = ident.value.to_lowercase();
+                                if format_value == "i" || format_value == "inverse" {
+                                    inverse_amount = true;
+                                }
+                            }
+                        }
+
+                        execute_copy(db, table_name, &target, inverse_amount);
                     },
                     _ => {
 
@@ -111,6 +122,8 @@ fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), ParserError> 
 
 static COMMAND_HISTORY_FILE: &str = ".transdb_history";
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
     let cli :Cli = Cli::parse();
 
     let mut db= Database::load(cli.file.as_str());
