@@ -14,7 +14,11 @@ pub(crate) fn run_query(query: Box<Query>, db: &Database) {
 
         if let TableFactor::Table { name, .. } = &select.from[0].relation {
             let table_name = name.to_string();
-            transactions = db.query(table_name.as_str(), select.selection.unwrap());
+
+            let s = select.selection;
+            info!("{:?}", s);
+
+            // transactions = db.query(table_name.as_str(), select.selection.unwrap());
         }
 
         let mut table = Table::new();
