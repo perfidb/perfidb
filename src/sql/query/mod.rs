@@ -1,7 +1,8 @@
 use comfy_table::{Table, TableComponent};
 use log::info;
-use sqlparser::ast::{Query, SetExpr, TableFactor};
+use sqlparser::ast::{Ident, Query, SetExpr, TableFactor};
 use crate::Database;
+use crate::transaction::Transaction;
 
 pub(crate) fn run_query(query: Box<Query>, db: &Database) {
     let Query { with, body, .. } = *query;
@@ -10,15 +11,18 @@ pub(crate) fn run_query(query: Box<Query>, db: &Database) {
         info!("{:?}", select.from);
         info!("{:?}", select.selection);
 
-        let mut transactions = vec![];
+        let mut transactions :Vec<Transaction> = vec![];
 
         if let TableFactor::Table { name, .. } = &select.from[0].relation {
-            let table_name = name.to_string();
+            // assume it always has at least 1 identifier
+            let table_name :&String = &name.0[0].value;
 
-            let s = select.selection;
-            info!("{:?}", s);
+            // // parse 'WHERE' clause if there is one
+            // if let Some(selection) = select.selection {
+            //     // TODO: Handle AND, OR, predicate
+            // }
 
-            // transactions = db.query(table_name.as_str(), select.selection.unwrap());
+            transactions = db.query(table_name.as_str(), select.selection);
         }
 
         let mut table = Table::new();

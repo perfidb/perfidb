@@ -1,6 +1,8 @@
 use std::{fs};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::iter::Filter;
+use std::slice::Iter;
+use std::path::{Path};
 use chrono::NaiveDateTime;
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -96,28 +98,34 @@ impl Database {
         }).collect()
     }
 
-    pub(crate) fn query(&self, from: &str, binary_op: Expr) -> Vec<Transaction> {
-        if let Expr::BinaryOp { left, op, right } = binary_op {
-            match op {
-                BinaryOperator::Gt => {
-                    info!("go in");
-                    let s: String = right.to_string();
-                    let amount_limit = s.parse::<f32>().unwrap();
-                    return self.transactions.iter()
-                        .filter(|t| t.amount.abs() > amount_limit)
-                        .map(|t| Transaction {
-                            account: t.account.clone(),
-                            date: t.date,
-                            description: t.description.clone(),
-                            amount: t.amount,
-                            tags: HashSet::new(),
-                        }).collect();
-                },
-                _ => {}
+    /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
+    pub(crate) fn query(&self, account: &str, binary_op: Option<Expr>) -> Vec<Transaction> {
+        let mut transactions = self.transactions.iter().filter(|t| {
+            account == "all" || account == t.account
+        }).collect::<Vec<&TransactionRecord>>();
+
+        // TODO: half implemented 'amount > ...'
+        if let Some(binary_op) = binary_op {
+            if let Expr::BinaryOp { left, op, right } = binary_op {
+                match op {
+                    BinaryOperator::Gt => {
+                        let s: String = right.to_string();
+                        let amount_limit = s.parse::<f32>().unwrap();
+
+                        transactions = transactions.into_iter().filter(|t| t.amount.abs() > amount_limit).collect::<Vec<&TransactionRecord>>();
+                    },
+                    _ => {}
+                }
             }
         }
-        let transactions = vec![];
-        transactions
+
+        transactions.iter().map(|t| Transaction {
+            account: t.account.clone(),
+            date: t.date,
+            description: t.description.clone(),
+            amount: t.amount,
+            tags: HashSet::new(),
+        }).collect()
     }
 }
 
