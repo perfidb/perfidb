@@ -31,7 +31,7 @@ fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inver
     }
 }
 
-fn execute_insert(db : &Database, table_name :&str, values: &Vec<Vec<Expr>>) {
+fn execute_insert(_db : &Database, _table_name :&str, values: &Vec<Vec<Expr>>) {
     for v in values {
         println!("{:?}", v);
     }

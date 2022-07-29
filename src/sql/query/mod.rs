@@ -1,11 +1,11 @@
 use comfy_table::{Table, TableComponent};
 use log::info;
-use sqlparser::ast::{Ident, Query, SetExpr, TableFactor};
+use sqlparser::ast::{Query, SetExpr, TableFactor};
 use crate::Database;
 use crate::transaction::Transaction;
 
 pub(crate) fn run_query(query: Box<Query>, db: &Database) {
-    let Query { with, body, .. } = *query;
+    let Query { with: _, body, .. } = *query;
     if let SetExpr::Select(select) = body {
         info!("{:?}", select.projection);
         info!("{:?}", select.from);

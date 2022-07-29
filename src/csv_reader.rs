@@ -44,7 +44,7 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
     // Checking if first row is header
     let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_path(file_path).unwrap();
     let mut first_row = StringRecord::new();
-    rdr.read_record(&mut first_row);
+    rdr.read_record(&mut first_row).unwrap();
     let mut first_row_joined = String::new();
     for column in first_row.iter() {
         first_row_joined.push_str(column);
@@ -186,13 +186,17 @@ fn parse_date(s :&str) -> NaiveDateTime {
 
 fn parse_amount(row: &StringRecord, header_index: &CsvHeaderIndex) -> f32 {
     if header_index.credit_amount.is_none() {
-        return row.get(header_index.amount).unwrap().parse::<f32>().unwrap();
+        let amount_str = row.get(header_index.amount).unwrap().replace("$", "").replace(",", "");
+        return amount_str.parse::<f32>().unwrap();
     }
 
-    let amount_str = row.get(header_index.amount).unwrap();
+    // if we get here it means there is a 'credit amount' column.
+
+    // first check if debit amount is empty
+    let amount_str = row.get(header_index.amount).unwrap().replace("$", "").replace(",", "");
     if !amount_str.is_empty() {
         return -amount_str.parse::<f32>().unwrap();
     } else {
-        return row.get(header_index.credit_amount.unwrap()).unwrap().parse::<f32>().unwrap();
+        return row.get(header_index.credit_amount.unwrap()).unwrap().replace("$", "").replace(",", "").parse::<f32>().unwrap();
     }
 }

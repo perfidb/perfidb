@@ -1,12 +1,9 @@
 use std::{fs};
 use std::collections::{HashMap, HashSet};
-use std::iter::Filter;
-use std::slice::Iter;
 use std::path::{Path};
 use chrono::NaiveDateTime;
-use log::info;
 use serde::{Deserialize, Serialize};
-use sqlparser::ast::{BinaryOperator, Expr, Value};
+use sqlparser::ast::{BinaryOperator, Expr};
 use crate::transaction::Transaction;
 
 /// Internal representation of a transaction record in database
@@ -106,7 +103,7 @@ impl Database {
 
         // TODO: half implemented 'amount > ...'
         if let Some(binary_op) = binary_op {
-            if let Expr::BinaryOp { left, op, right } = binary_op {
+            if let Expr::BinaryOp { left: _, op, right } = binary_op {
                 match op {
                     BinaryOperator::Gt => {
                         let s: String = right.to_string();

@@ -8,7 +8,6 @@ use env_logger::Env;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
 use crate::db::Database;
-use sqlparser::parser::ParserError;
 use crate::sql::parse_and_run_sql;
 
 #[derive(Parser)]
