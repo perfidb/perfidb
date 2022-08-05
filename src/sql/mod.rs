@@ -6,23 +6,40 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{csv_reader, Database};
 use crate::sql::query::run_query;
+use walkdir::WalkDir;
+
+fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool) {
+    let result = csv_reader::read_transactions(table_name, path, inverse_amount);
+    match result {
+        Ok(transactions) => {
+            for t in &transactions {
+                db.upsert(t);
+            }
+            db.save();
+            println!("Imported {} transactions", &transactions.len());
+        },
+        Err(e) => {
+            println!("{}", e);
+        }
+    }
+
+}
 
 fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inverse_amount: bool) {
     match target {
         CopyTarget::File { filename} => {
             let path = Path::new(filename);
-            let result = csv_reader::read_transactions(table_name, path, inverse_amount);
-            match result {
-                Ok(transactions) => {
-                    for t in transactions {
-                        db.upsert(&t);
-                        println!("{:?}", t);
+            if path.is_dir() {
+                for entry in WalkDir::new(path).into_iter() {
+                    let dir_entry = entry.unwrap();
+                    if dir_entry.path().is_file() {
+                        println!("Copying from {}", dir_entry.path().display());
+                        copy_from_csv(dir_entry.path(), db, table_name, inverse_amount);
                     }
-                    db.save();
-                },
-                Err(e) => {
-                    println!("{}", e);
                 }
+            } else if path.is_file() {
+                println!("Copying from {}", path.display());
+                copy_from_csv(path, db, table_name, inverse_amount);
             }
         },
         _ => {

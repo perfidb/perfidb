@@ -2,6 +2,7 @@ mod db;
 mod csv_reader;
 mod transaction;
 mod sql;
+mod enrich;
 
 use clap::{Parser};
 use env_logger::Env;

@@ -31,11 +31,11 @@ pub(crate) fn run_query(query: Box<Query>, db: &Database) {
         table.remove_style(TableComponent::LeftBorderIntersections);
         table.remove_style(TableComponent::RightBorderIntersections);
         table.set_header(vec!["Account", "Date", "Description", "Amount", "Tags"]);
+
         for t in transactions {
             // TODO handle tags
-            table.add_row(vec![t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), ""]);
+            table.add_row(vec![t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), t.kind.as_str()]);
         }
-
         println!("{table}");
     }
 }

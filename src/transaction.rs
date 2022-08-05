@@ -7,5 +7,5 @@ pub(crate) struct Transaction {
     pub(crate) date: NaiveDateTime,
     pub(crate) description: String,
     pub(crate) amount: f32,
-    pub(crate) tags: HashSet<String>,
+    pub(crate) kind: String,
 }

@@ -91,7 +91,7 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
             date,
             description,
             amount,
-            tags: HashSet::new()
+            kind: "".to_string()
         });
     }
 
@@ -169,7 +169,7 @@ fn parse_date(s :&str) -> NaiveDateTime {
     let yyyymmdd_t_hhmmss = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$").unwrap();
     let yyyymmdd_t_hhmmss_zone = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+.+$").unwrap();
     let ddmmyyyy = Regex::new(r"^\d{2}/\d{2}/\d{4}$").unwrap();
-    let ddmmmyyyy = Regex::new(r"^\d{2} [a-zA-Z]{3} \d{4}$").unwrap();
+    let ddmmmyyyy = Regex::new(r"^\d{1,2} [a-zA-Z]{3} \d{4}$").unwrap();
 
     if yyyymmdd_t_hhmmss.is_match(s) {
         NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").unwrap()
@@ -187,7 +187,7 @@ fn parse_date(s :&str) -> NaiveDateTime {
 fn parse_amount(row: &StringRecord, header_index: &CsvHeaderIndex) -> f32 {
     if header_index.credit_amount.is_none() {
         let amount_str = row.get(header_index.amount).unwrap().replace("$", "").replace(",", "");
-        return amount_str.parse::<f32>().unwrap();
+        return amount_str.trim().parse::<f32>().unwrap();
     }
 
     // if we get here it means there is a 'credit amount' column.
