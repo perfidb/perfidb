@@ -1,9 +1,10 @@
 use std::{fmt, fs};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path};
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
+use log::info;
 use serde::{Deserialize, Serialize};
-use sqlparser::ast::{BinaryOperator, Expr};
+use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
 use crate::transaction::Transaction;
 use crate::enrich::enrich;
 
@@ -42,9 +43,10 @@ struct TransactionRecord {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct Database {
-    transactions: Vec<TransactionRecord>,
+    transaction_id_seed: u32,
+    transactions: HashMap<u32, TransactionRecord>,
 
-    /// Key is transaction date, value is a list of transaction ids. The id is basically the index of 'transactions' vec.
+    /// Key is transaction date, value is a list of transaction ids.
     date_index: BTreeMap<NaiveDate, Vec<u32>>,
 
     /// key is tag string, value is tag's index
@@ -59,7 +61,8 @@ pub(crate) struct Database {
 impl Database {
     pub(crate) fn new(file_path: Option<String>) -> Database {
         Database {
-            transactions: vec![],
+            transaction_id_seed: 1,
+            transactions: HashMap::new(),
             date_index: BTreeMap::new(),
             tag_name_to_id: HashMap::new(),
             tags: vec![],
@@ -102,10 +105,13 @@ impl Database {
         //
         //     tags.push(tag_id);
         // }
+        let trans_id = self.transaction_id_seed;
 
-        let id = (self.transactions.len() + 1) as u32;
+        // increment seed
+        self.transaction_id_seed += 1;
+
         let t = TransactionRecord {
-            id,
+            id: trans_id,
             account: t.account.clone(),
             date: t.date,
             description: t.description.clone(),
@@ -117,44 +123,107 @@ impl Database {
             self.date_index.insert(date, vec![]);
         };
         // Add to date index
-        self.date_index.get_mut(&date).unwrap().push(id);
+        self.date_index.get_mut(&date).unwrap().push(trans_id);
         // Add to transactions table
-        self.transactions.push(t);
+        self.transactions.insert(trans_id, t);
     }
 
-    /// Get transaction by id
-    fn by_id(&self, id: u32) -> &TransactionRecord {
-        &self.transactions[(id - 1) as usize]
-    }
-
-    /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
-    pub(crate) fn query(&self, account: &str, binary_op: Option<Expr>) -> Vec<Transaction> {
-        let mut transactions = self.transactions.iter().filter(|t| {
-            account == "all" || account == t.account
-        }).collect::<Vec<&TransactionRecord>>();
-
-        // TODO: half implemented 'amount > ...'
-        if let Some(binary_op) = binary_op {
-            if let Expr::BinaryOp { left: _, op, right } = binary_op {
+    fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
+        match where_clause {
+            Expr::BinaryOp{ left, op, right} => {
                 match op {
+                    BinaryOperator::And => {
+                        let left_result = self.filter_transactions(transactions, left);
+                        let right_result = self.filter_transactions(transactions, right);
+                        left_result.intersection(&right_result).cloned().collect()
+                    },
+                    BinaryOperator::Or => {
+                        let left_result = self.filter_transactions(transactions, left);
+                        let right_result = self.filter_transactions(transactions, right);
+                        left_result.union(&right_result).cloned().collect()
+                    },
                     BinaryOperator::Gt => {
                         let s: String = right.to_string();
                         let amount_limit = s.parse::<f32>().unwrap();
 
-                        transactions = transactions.into_iter().filter(|t| t.amount.abs() > amount_limit).collect::<Vec<&TransactionRecord>>();
+                        transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount.abs() > amount_limit).cloned().collect::<HashSet<u32>>()
                     },
-                    _ => {}
+                    _ => HashSet::new()
                 }
-            }
+            },
+
+            Expr::Function(f) => {
+                let func_name: &String = &f.name.0[0].value;
+                if func_name.eq("month") {
+                    if f.args.len() == 1 {
+                        if let FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Value(value))) = &f.args[0] {
+                            match value {
+                                Value::Number(number, _) => {
+                                    let month = number.parse::<u32>().unwrap();
+                                    let today = Utc::now().naive_utc().date();
+                                    let mut year = today.year();
+                                    if month >= today.month() {
+                                        year -= 1;
+                                    }
+
+                                    let first_day = NaiveDate::from_ymd(year, month, 1);
+                                    let next_month = if month == 12 { 1 } else { month + 1 };
+                                    let next_month_year = if month == 12 { year + 1 } else { year };
+                                    let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
+
+                                    let mut transactions = HashSet::<u32>::new();
+                                    for (_, trans_ids) in self.date_index.range(first_day..first_day_next_month) {
+                                        for id in trans_ids {
+                                            transactions.insert(*id);
+                                        }
+                                    }
+
+                                    info!("{} {}", first_day, first_day_next_month);
+
+                                    return transactions;
+                                },
+                                _ => {
+                                    return HashSet::new();
+                                }
+                            }
+                        }
+                    }
+                }
+                HashSet::new()
+            },
+            _ => HashSet::new()
+        }
+    }
+
+
+    /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
+    pub(crate) fn query(&self, account: &str, where_clause: Option<Expr>) -> Vec<Transaction> {
+        let mut transactions = self.transactions.values().filter(|t| {
+            account == "all" || account == t.account
+        }).map(|t| t.id).collect::<HashSet<u32>>();
+
+        // TODO: half implemented 'amount > ...'
+        if let Some(where_clause) = where_clause {
+            transactions = self.filter_transactions(&transactions, &where_clause);
         }
 
+        let mut transactions = transactions.iter().map(|id| self.transactions.get(id).unwrap()).collect::<Vec<&TransactionRecord>>();
+
+        transactions.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
+
         transactions.iter().map(|t| Transaction {
+            id: t.id,
             account: t.account.clone(),
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
             kind: "".to_string(),
         }).collect()
+    }
+
+    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
+        info!("Updating tags {:?} for transaction {}", tags, trans_id);
+
     }
 }
 
@@ -167,6 +236,7 @@ mod tests {
     #[test]
     fn test_transaction_serde() {
         let t = TransactionRecord {
+            id: 1,
             account: "cba".to_string(),
             date: NaiveDateTime::from_str("2022-07-31T17:30:45").unwrap(),
             description: "food".to_string(),

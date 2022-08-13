@@ -1,7 +1,7 @@
 mod query;
 
 use std::path::Path;
-use sqlparser::ast::{CopyOption, CopyTarget, Expr, SetExpr, Statement};
+use sqlparser::ast::{Assignment, CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{csv_reader, Database};
@@ -68,6 +68,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
                     Statement::Query(query) => {
                         run_query(query, &db);
                     },
+
                     Statement::Insert { table_name, source, .. } => {
                         println!("{:?}", table_name);
 
@@ -81,6 +82,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
                             _ => ()
                         }
                     },
+
                     Statement::Copy { table_name, target, options, .. } => {
                         // Grab index 0 for now. TODO: make it nicer
                         let table_name :&str = table_name.0[0].value.as_str();
@@ -98,8 +100,20 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
 
                         execute_copy(db, table_name, &target, inverse_amount);
                     },
-                    _ => {
 
+                    Statement::Update { table, assignments, .. } => {
+                        if let TableFactor::Table { name, .. } = table.relation {
+                            let trans_id = name.0[0].value.parse::<u32>().unwrap();
+                            for assignment in assignments {
+                                if let Expr::Value(Value::SingleQuotedString(tags)) = assignment.value {
+                                    let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
+                                    db.update_tags(trans_id, &tags);
+                                }
+                            }
+                        }
+                    },
+                    _ => {
+                        println!("Unsupported statement {:?}", statement);
                     }
                 }
             }

@@ -86,7 +86,9 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
         let description = row.get(header_index.description).unwrap().to_string();
         let amount = parse_amount(&row, &header_index) * inverse_amount;
 
+        // TODO: remove 'id' field
         transactions.push(Transaction {
+            id: 0,
             account: account.to_string(),
             date,
             description,
