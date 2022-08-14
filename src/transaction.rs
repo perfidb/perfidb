@@ -8,5 +8,5 @@ pub(crate) struct Transaction {
     pub(crate) date: NaiveDateTime,
     pub(crate) description: String,
     pub(crate) amount: f32,
-    pub(crate) kind: String,
+    pub(crate) tags: String,
 }

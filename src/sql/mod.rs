@@ -1,7 +1,8 @@
 mod query;
 
 use std::path::Path;
-use sqlparser::ast::{Assignment, CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value};
+use log::{info, warn};
+use sqlparser::ast::{Assignment, CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{csv_reader, Database};
@@ -105,9 +106,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
                         if let TableFactor::Table { name, .. } = table.relation {
                             let trans_id = name.0[0].value.parse::<u32>().unwrap();
                             for assignment in assignments {
-                                if let Expr::Value(Value::SingleQuotedString(tags)) = assignment.value {
-                                    let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
-                                    db.update_tags(trans_id, &tags);
+                                if assignment.id[0].value == "tags" {
+                                    update_transaction_tags(db, trans_id, assignment.value);
                                 }
                             }
                         }
@@ -121,4 +121,43 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
     }
 
     Ok(())
+}
+
+fn update_transaction_tags(db: &mut Database, trans_id: u32, tag_value_expr: Expr) {
+    if let Expr::Value(Value::SingleQuotedString(tags)) = tag_value_expr {
+        let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
+        db.update_tags(trans_id, &tags);
+        return;
+    }
+
+    if let Expr::Function(Function { name, args, .. }) = tag_value_expr {
+        if name.0[0].value == "remove" {
+            let tags = extract_args_string(&args);
+            db.remove_tags(trans_id, &tags);
+        }
+        return;
+    }
+
+    info!("Unable to parse tags value expr {:?}", tag_value_expr);
+}
+
+/// Extract string values from a list of FunctionArg.
+/// Currently only support Ident and SingleQuotedString, ie. remove(grocery),  remove('grocery')
+fn extract_args_string(args: &Vec<FunctionArg>) -> Vec<&str> {
+    let mut result = vec![];
+    for arg in args {
+        match arg {
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Identifier(ident))) => {
+                result.push(ident.value.as_str());
+            },
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Value(Value::SingleQuotedString(string)))) => {
+                result.push(string.as_str());
+            },
+            _ => {
+                warn!("{:?} is not a supported function argument", arg);
+            }
+        }
+    }
+
+    result
 }

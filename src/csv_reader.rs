@@ -93,7 +93,7 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
             date,
             description,
             amount,
-            kind: "".to_string()
+            tags: "".to_string()
         });
     }
 

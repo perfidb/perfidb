@@ -34,7 +34,7 @@ pub(crate) fn run_query(query: Box<Query>, db: &Database) {
 
         for t in transactions {
             // TODO handle tags
-            table.add_row(vec![t.id.to_string().as_str(), t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), t.kind.as_str()]);
+            table.add_row(vec![t.id.to_string().as_str(), t.account.as_str(), t.date.to_string().as_str(), t.description.as_str(), t.amount.to_string().as_str(), t.tags.as_str()]);
         }
         println!("{table}");
     }

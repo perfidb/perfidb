@@ -5,6 +5,7 @@ use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
 use log::info;
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
+use sqlparser::ast::Expr::Identifier;
 use crate::transaction::Transaction;
 use crate::enrich::enrich;
 
@@ -36,9 +37,8 @@ struct TransactionRecord {
     description: String,
     amount: f32,
 
-    // TODO: handle tags
     // List of tag ids
-    // tags: Vec<usize>,
+    tags: Vec<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,9 +50,14 @@ pub(crate) struct Database {
     date_index: BTreeMap<NaiveDate, Vec<u32>>,
 
     /// key is tag string, value is tag's index
-    tag_name_to_id: HashMap<String, usize>,
+    tag_name_to_id: HashMap<String, u32>,
 
-    tags: Vec<String>,
+    tag_id_to_name: HashMap<u32, String>,
+
+    tag_id_seed: u32,
+
+    /// tag id to a list of transactions with that tag
+    tag_id_to_transactions: HashMap<u32, Vec<u32>>,
 
     #[serde(skip_serializing, skip_deserializing)]
     file_path: Option<String>,
@@ -65,7 +70,9 @@ impl Database {
             transactions: HashMap::new(),
             date_index: BTreeMap::new(),
             tag_name_to_id: HashMap::new(),
-            tags: vec![],
+            tag_id_to_name: HashMap::new(),
+            tag_id_seed: 1,
+            tag_id_to_transactions: HashMap::new(),
             file_path,
         }
     }
@@ -116,6 +123,7 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
+            tags: vec![],
         };
 
         let date: NaiveDate = t.date.date();
@@ -128,8 +136,67 @@ impl Database {
         self.transactions.insert(trans_id, t);
     }
 
+    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
+        info!("Updating tags {:?} for transaction {}", tags, trans_id);
+
+        for tag in tags {
+            if !self.tag_name_to_id.contains_key(*tag) {
+                self.tag_name_to_id.insert(tag.to_string(), self.tag_id_seed);
+                self.tag_id_to_name.insert(self.tag_id_seed, tag.to_string());
+                self.tag_id_to_transactions.insert(self.tag_id_seed, vec![]);
+                self.tag_id_seed += 1;
+
+            }
+
+            let tag_id = self.tag_name_to_id.get(*tag).unwrap();
+            let mut transaction = self.transactions.get_mut(&trans_id).unwrap();
+            if !transaction.tags.contains(tag_id) {
+                transaction.tags.push(*tag_id);
+                self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
+            }
+        }
+    }
+
+    pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
+        info!("Removing tags {:?} from transaction {}", tags, trans_id);
+        let mut transaction = self.transactions.get_mut(&trans_id).unwrap();
+
+        for tag in tags {
+            // Only run if this tag id exists
+            if let Some(tag_id_to_remove) = self.tag_name_to_id.get(*tag) {
+                transaction.tags.retain(|tag_id| *tag_id != *tag_id_to_remove);
+                // Remove transaction from dictionary
+                self.tag_id_to_transactions.get_mut(tag_id_to_remove).unwrap().retain(|existing_trans_id| *existing_trans_id != trans_id);
+            }
+        }
+    }
+
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
         match where_clause {
+            // Expr::BinaryOp{ left: Expr::Identifier(ident) , op: BinaryOperator::Eq, right: Expr::Value(Value::SingleQuotedString(tag))} => {
+            Expr::BinaryOp{ left, op: BinaryOperator::Eq, right} => {
+                let left: &Expr = left;
+                let right: &Expr = right;
+
+                if let Identifier(ident) = left {
+                    if ident.value == "tags" {
+                        if let Expr::Value(Value::SingleQuotedString(tag)) = right {
+                            return match self.tag_name_to_id.get(tag) {
+                                Some(tag_id) => {
+                                    let mut results = HashSet::<u32>::new();
+                                    for trans_id in self.tag_id_to_transactions.get(tag_id).unwrap() {
+                                        results.insert(*trans_id);
+                                    }
+                                    results
+                                },
+                                None => HashSet::new()
+                            };
+                        }
+                    }
+                }
+
+                HashSet::new()
+            },
             Expr::BinaryOp{ left, op, right} => {
                 match op {
                     BinaryOperator::And => {
@@ -217,13 +284,8 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
-            kind: "".to_string(),
+            tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().as_str()).collect::<Vec<&str>>().join(", "),
         }).collect()
-    }
-
-    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
-        info!("Updating tags {:?} for transaction {}", tags, trans_id);
-
     }
 }
 
@@ -241,6 +303,7 @@ mod tests {
             date: NaiveDateTime::from_str("2022-07-31T17:30:45").unwrap(),
             description: "food".to_string(),
             amount: 29.95,
+            tags: vec![]
         };
 
         let s = serde_json::to_string::<TransactionRecord>(&t).unwrap();
