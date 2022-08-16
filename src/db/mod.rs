@@ -109,9 +109,8 @@ impl Database {
         };
 
         let date: NaiveDate = t.date.date();
-        if !self.date_index.contains_key(&date) {
-            self.date_index.insert(date, vec![]);
-        };
+        self.date_index.entry(date).or_insert(vec![]);
+
         // Add to date index
         self.date_index.get_mut(&date).unwrap().push(trans_id);
 
@@ -122,7 +121,7 @@ impl Database {
     }
 
     /// Tokenise description by whitespace and add trans_id into reverse index
-    fn index_description(&mut self, trans_id: u32, description: &String) {
+    fn index_description(&mut self, trans_id: u32, description: &str) {
         for token in description.split_whitespace() {
             let token = token.to_lowercase();
             if !self.token_to_transactions.contains_key(token.as_str()) {
@@ -133,7 +132,7 @@ impl Database {
         }
     }
 
-    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
+    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &[&str]) {
         info!("Updating tags {:?} for transaction {}", tags, trans_id);
 
         for tag in tags {
@@ -156,7 +155,7 @@ impl Database {
         self.save();
     }
 
-    pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
+    pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &[&str]) {
         info!("Removing tags {:?} from transaction {}", tags, trans_id);
         let transaction = self.transactions.get_mut(&trans_id).unwrap();
 
@@ -261,37 +260,35 @@ impl Database {
 
             Expr::Function(f) => {
                 let func_name: &String = &f.name.0[0].value;
-                if func_name.eq("month") {
-                    if f.args.len() == 1 {
-                        if let FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Value(value))) = &f.args[0] {
-                            match value {
-                                Value::Number(number, _) => {
-                                    let month = number.parse::<u32>().unwrap();
-                                    let today = Utc::now().naive_utc().date();
-                                    let mut year = today.year();
-                                    if month >= today.month() {
-                                        year -= 1;
-                                    }
-
-                                    let first_day = NaiveDate::from_ymd(year, month, 1);
-                                    let next_month = if month == 12 { 1 } else { month + 1 };
-                                    let next_month_year = if month == 12 { year + 1 } else { year };
-                                    let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
-
-                                    let mut transactions = HashSet::<u32>::new();
-                                    for (_, trans_ids) in self.date_index.range(first_day..first_day_next_month) {
-                                        for id in trans_ids {
-                                            transactions.insert(*id);
-                                        }
-                                    }
-
-                                    info!("{} {}", first_day, first_day_next_month);
-
-                                    return transactions;
-                                },
-                                _ => {
-                                    return HashSet::new();
+                if func_name.eq("month") && f.args.len() == 1 {
+                    if let FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Value(value))) = &f.args[0] {
+                        match value {
+                            Value::Number(number, _) => {
+                                let month = number.parse::<u32>().unwrap();
+                                let today = Utc::now().naive_utc().date();
+                                let mut year = today.year();
+                                if month >= today.month() {
+                                    year -= 1;
                                 }
+
+                                let first_day = NaiveDate::from_ymd(year, month, 1);
+                                let next_month = if month == 12 { 1 } else { month + 1 };
+                                let next_month_year = if month == 12 { year + 1 } else { year };
+                                let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
+
+                                let mut transactions = HashSet::<u32>::new();
+                                for (_, trans_ids) in self.date_index.range(first_day..first_day_next_month) {
+                                    for id in trans_ids {
+                                        transactions.insert(*id);
+                                    }
+                                }
+
+                                info!("{} {}", first_day, first_day_next_month);
+
+                                return transactions;
+                            },
+                            _ => {
+                                return HashSet::new();
                             }
                         }
                     }

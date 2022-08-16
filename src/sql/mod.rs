@@ -49,9 +49,10 @@ fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inver
     }
 }
 
-fn execute_insert(_db : &Database, _table_name :&str, values: &Vec<Vec<Expr>>) {
-    for v in values {
-        println!("{:?}", v);
+fn execute_insert(_db : &Database, _table_name :&str, values: &[Vec<Expr>]) {
+    for _v in values {
+        // TODO: implement single INSERT
+        println!("INSERT statement is not implemented yet");
     }
 }
 
@@ -67,7 +68,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
             for statement in ast {
                 match statement {
                     Statement::Query(query) => {
-                        run_query(query, &db);
+                        run_query(query, db);
                     },
 
                     Statement::Insert { table_name, source, .. } => {
@@ -76,11 +77,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
                         // Grab index 0 for now. TODO: make it nicer
                         let table_name :&str = table_name.0[0].value.as_str();
 
-                        match source.body {
-                            SetExpr::Values(values) => {
-                                execute_insert(&db, table_name, &values.0);
-                            },
-                            _ => ()
+                        if let SetExpr::Values(values) = source.body {
+                            execute_insert(db, table_name, &values.0);
                         }
                     },
 
@@ -143,7 +141,7 @@ fn update_transaction_tags(db: &mut Database, trans_id: u32, tag_value_expr: Exp
 
 /// Extract string values from a list of FunctionArg.
 /// Currently only support Ident and SingleQuotedString, ie. remove(grocery),  remove('grocery')
-fn extract_args_string(args: &Vec<FunctionArg>) -> Vec<&str> {
+fn extract_args_string(args: &[FunctionArg]) -> Vec<&str> {
     let mut result = vec![];
     for arg in args {
         match arg {

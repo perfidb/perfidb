@@ -36,7 +36,7 @@ fn main() {
         let readline = rl.readline("# ");
         match readline {
             Ok(line) => {
-                let is_last = line.ends_with(";");
+                let is_last = line.ends_with(';');
                 sql_buffer.push(line);
                 if is_last {
                     let sql = sql_buffer.join("\n");

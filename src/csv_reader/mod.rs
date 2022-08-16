@@ -61,21 +61,20 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
 
 
     let mut rdr = csv::ReaderBuilder::new().has_headers(has_header).from_path(file_path).unwrap();
-    let header_index :CsvHeaderIndex;
-    if has_header {
+    let header_index :CsvHeaderIndex = if has_header {
         info!("Header row detected");
-        header_index = parse_header_index(rdr.headers().unwrap())?;
+        parse_header_index(rdr.headers().unwrap())?
     } else {
         info!("No header row detected");
 
         // TODO: ensure robust handling of header index when no header is detected
-        header_index = CsvHeaderIndex {
+        CsvHeaderIndex {
             date: 0,
             amount: 1,
             credit_amount: None,
             description: 2
         }
-    }
+    };
 
     let mut transactions :Vec<Transaction> = vec![];
     let inverse_amount :f32 = if inverse_amount { -1.0 } else { 1.0 };
@@ -187,17 +186,17 @@ fn parse_date(s :&str) -> NaiveDateTime {
 
 fn parse_amount(row: &StringRecord, header_index: &CsvHeaderIndex) -> f32 {
     if header_index.credit_amount.is_none() {
-        let amount_str = row.get(header_index.amount).unwrap().replace("$", "").replace(",", "");
+        let amount_str = row.get(header_index.amount).unwrap().replace('$', "").replace(',', "");
         return amount_str.trim().parse::<f32>().unwrap();
     }
 
     // if we get here it means there is a 'credit amount' column.
 
     // first check if debit amount is empty
-    let amount_str = row.get(header_index.amount).unwrap().replace("$", "").replace(",", "");
+    let amount_str = row.get(header_index.amount).unwrap().replace('$', "").replace(',', "");
     if !amount_str.is_empty() {
-        return -amount_str.parse::<f32>().unwrap();
+        -amount_str.parse::<f32>().unwrap()
     } else {
-        return row.get(header_index.credit_amount.unwrap()).unwrap().replace("$", "").replace(",", "").parse::<f32>().unwrap();
+        row.get(header_index.credit_amount.unwrap()).unwrap().replace('$', "").replace(',', "").parse::<f32>().unwrap()
     }
 }
