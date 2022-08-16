@@ -92,11 +92,6 @@ impl Database {
         }
     }
 
-    pub(crate) fn save(&self) {
-        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
-        // let s = serde_json::to_string(self).unwrap();
-        fs::write((&self.file_path).as_ref().unwrap(), encoded).expect("Unable to write to database file");
-    }
 
     pub(crate) fn upsert(&mut self, t: &Transaction) {
         let trans_id = self.transaction_id_seed;
@@ -157,6 +152,8 @@ impl Database {
                 self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
             }
         }
+
+        self.save();
     }
 
     pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
@@ -171,6 +168,8 @@ impl Database {
                 self.tag_id_to_transactions.get_mut(tag_id_to_remove).unwrap().retain(|existing_trans_id| *existing_trans_id != trans_id);
             }
         }
+
+        self.save();
     }
 
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
@@ -220,10 +219,32 @@ impl Database {
 
             // Process left > right, assumes left is 'amount'
             Expr::BinaryOp{ left: _, op: BinaryOperator::Gt, right} => {
-                let s: String = right.to_string();
+                // TODO: handle UnaryOp {op: Minus, expr: Value(Number("11.99", false))} properly
+                let s: String = right.to_string().replace(' ', "");
                 let amount_limit = s.parse::<f32>().unwrap();
 
-                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount.abs() > amount_limit).cloned().collect::<HashSet<u32>>()
+                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount > amount_limit).cloned().collect::<HashSet<u32>>()
+            },
+            Expr::BinaryOp{ left: _, op: BinaryOperator::GtEq, right} => {
+                let s: String = right.to_string().replace(' ', "");
+                let amount_limit = s.parse::<f32>().unwrap();
+
+                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount >= amount_limit).cloned().collect::<HashSet<u32>>()
+            },
+
+
+            // Process left < right, assumes left is 'amount'
+            Expr::BinaryOp{ left: _, op: BinaryOperator::Lt, right} => {
+                let s: String = right.to_string().replace(' ', "");
+                let amount_limit = s.parse::<f32>().unwrap();
+
+                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount < amount_limit).cloned().collect::<HashSet<u32>>()
+            },
+            Expr::BinaryOp{ left: _, op: BinaryOperator::LtEq, right} => {
+                let s: String = right.to_string().replace(' ', "");
+                let amount_limit = s.parse::<f32>().unwrap();
+
+                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount <= amount_limit).cloned().collect::<HashSet<u32>>()
             },
 
             Expr::BinaryOp{ left, op: BinaryOperator::And, right} => {
@@ -288,7 +309,6 @@ impl Database {
             account == "all" || account == t.account
         }).map(|t| t.id).collect::<HashSet<u32>>();
 
-        // TODO: half implemented 'amount > ...'
         if let Some(where_clause) = where_clause {
             transactions = self.filter_transactions(&transactions, &where_clause);
         }
@@ -305,6 +325,12 @@ impl Database {
             amount: t.amount,
             tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().as_str()).collect::<Vec<&str>>().join(", "),
         }).collect()
+    }
+
+    /// Save db content to disk
+    pub(crate) fn save(&self) {
+        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+        fs::write((&self.file_path).as_ref().unwrap(), encoded).expect("Unable to write to database file");
     }
 }
 
