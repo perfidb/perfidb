@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
 use sqlparser::ast::Expr::Identifier;
 use crate::transaction::Transaction;
-use crate::enrich::enrich;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) enum TransactionKind {
@@ -59,6 +58,9 @@ pub(crate) struct Database {
     /// tag id to a list of transactions with that tag
     tag_id_to_transactions: HashMap<u32, Vec<u32>>,
 
+    /// Inverted index for full-text search on 'description'
+    token_to_transactions: HashMap<String, HashSet<u32>>,
+
     #[serde(skip_serializing, skip_deserializing)]
     file_path: Option<String>,
 }
@@ -73,6 +75,7 @@ impl Database {
             tag_id_to_name: HashMap::new(),
             tag_id_seed: 1,
             tag_id_to_transactions: HashMap::new(),
+            token_to_transactions: HashMap::new(),
             file_path,
         }
     }
@@ -96,22 +99,6 @@ impl Database {
     }
 
     pub(crate) fn upsert(&mut self, t: &Transaction) {
-        // let mut tags = vec![];
-        // for tag in t.tags.iter() {
-        //     let tag_id = match self.tag_name_to_id.get(tag.as_str()) {
-        //         Some(tag_id) => {
-        //             *tag_id
-        //         },
-        //         None => {
-        //             let tag_id = self.tags.len();
-        //             self.tags.push(tag.into());
-        //             self.tag_name_to_id.insert(tag.into(), tag_id);
-        //             tag_id
-        //         }
-        //     };
-        //
-        //     tags.push(tag_id);
-        // }
         let trans_id = self.transaction_id_seed;
 
         // increment seed
@@ -132,8 +119,23 @@ impl Database {
         };
         // Add to date index
         self.date_index.get_mut(&date).unwrap().push(trans_id);
+
+        self.index_description(trans_id, &t.description);
+
         // Add to transactions table
         self.transactions.insert(trans_id, t);
+    }
+
+    /// Tokenise description by whitespace and add trans_id into reverse index
+    fn index_description(&mut self, trans_id: u32, description: &String) {
+        for token in description.split_whitespace() {
+            let token = token.to_lowercase();
+            if !self.token_to_transactions.contains_key(token.as_str()) {
+                self.token_to_transactions.insert(token.clone(), HashSet::new());
+            }
+
+            self.token_to_transactions.get_mut(&token).unwrap().insert(trans_id);
+        }
     }
 
     pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
@@ -149,7 +151,7 @@ impl Database {
             }
 
             let tag_id = self.tag_name_to_id.get(*tag).unwrap();
-            let mut transaction = self.transactions.get_mut(&trans_id).unwrap();
+            let transaction = self.transactions.get_mut(&trans_id).unwrap();
             if !transaction.tags.contains(tag_id) {
                 transaction.tags.push(*tag_id);
                 self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
@@ -159,7 +161,7 @@ impl Database {
 
     pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &Vec<&str>) {
         info!("Removing tags {:?} from transaction {}", tags, trans_id);
-        let mut transaction = self.transactions.get_mut(&trans_id).unwrap();
+        let transaction = self.transactions.get_mut(&trans_id).unwrap();
 
         for tag in tags {
             // Only run if this tag id exists
@@ -173,7 +175,6 @@ impl Database {
 
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
         match where_clause {
-            // Expr::BinaryOp{ left: Expr::Identifier(ident) , op: BinaryOperator::Eq, right: Expr::Value(Value::SingleQuotedString(tag))} => {
             Expr::BinaryOp{ left, op: BinaryOperator::Eq, right} => {
                 let left: &Expr = left;
                 let right: &Expr = right;
@@ -197,26 +198,44 @@ impl Database {
 
                 HashSet::new()
             },
-            Expr::BinaryOp{ left, op, right} => {
-                match op {
-                    BinaryOperator::And => {
-                        let left_result = self.filter_transactions(transactions, left);
-                        let right_result = self.filter_transactions(transactions, right);
-                        left_result.intersection(&right_result).cloned().collect()
-                    },
-                    BinaryOperator::Or => {
-                        let left_result = self.filter_transactions(transactions, left);
-                        let right_result = self.filter_transactions(transactions, right);
-                        left_result.union(&right_result).cloned().collect()
-                    },
-                    BinaryOperator::Gt => {
-                        let s: String = right.to_string();
-                        let amount_limit = s.parse::<f32>().unwrap();
 
-                        transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount.abs() > amount_limit).cloned().collect::<HashSet<u32>>()
-                    },
-                    _ => HashSet::new()
+            // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
+            Expr::BinaryOp{ left: _, op: BinaryOperator::Like, right} => {
+                let right: &Expr = right;
+                if let Expr::Value(Value::SingleQuotedString(keyword)) = right {
+                    return match self.token_to_transactions.get(keyword) {
+                        Some(transactions) => {
+                            let mut results = HashSet::<u32>::new();
+                            for trans_id in transactions{
+                                results.insert(*trans_id);
+                            }
+                            results
+                        },
+                        None => HashSet::new()
+                    };
                 }
+
+                HashSet::new()
+            },
+
+            // Process left > right, assumes left is 'amount'
+            Expr::BinaryOp{ left: _, op: BinaryOperator::Gt, right} => {
+                let s: String = right.to_string();
+                let amount_limit = s.parse::<f32>().unwrap();
+
+                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount.abs() > amount_limit).cloned().collect::<HashSet<u32>>()
+            },
+
+            Expr::BinaryOp{ left, op: BinaryOperator::And, right} => {
+                let left_result = self.filter_transactions(transactions, left);
+                let right_result = self.filter_transactions(transactions, right);
+                left_result.intersection(&right_result).cloned().collect()
+            },
+
+            Expr::BinaryOp{ left, op: BinaryOperator::Or, right} => {
+                let left_result = self.filter_transactions(transactions, left);
+                let right_result = self.filter_transactions(transactions, right);
+                left_result.union(&right_result).cloned().collect()
             },
 
             Expr::Function(f) => {

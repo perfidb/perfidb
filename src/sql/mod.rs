@@ -2,7 +2,7 @@ mod query;
 
 use std::path::Path;
 use log::{info, warn};
-use sqlparser::ast::{Assignment, CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
+use sqlparser::ast::{CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{csv_reader, Database};

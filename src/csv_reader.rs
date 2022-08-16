@@ -1,5 +1,4 @@
 use std::{fmt};
-use std::collections::HashSet;
 use std::path::Path;
 use chrono::{NaiveDate, NaiveDateTime};
 use csv::StringRecord;
