@@ -100,7 +100,20 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
                         execute_copy(db, table_name, &target, inverse_amount);
                     },
 
-                    Statement::Update { table, assignments, .. } => {
+                    Statement::Update { table, assignments, selection: Some(from_clause), .. } => {
+                        for assignment in assignments {
+                            if assignment.id[0].value == "tags" {
+                                if let Expr::Value(Value::SingleQuotedString(tags)) = assignment.value {
+                                    let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
+                                    db.update_tags_for_multiple_transactions(&from_clause, &tags);
+                                }
+
+                            }
+                        }
+                    },
+
+                    // If no 'FROM' clause, we assume updating on one transaction and that transaction id is table name
+                    Statement::Update { table, assignments, selection: None, .. } => {
                         if let TableFactor::Table { name, .. } = table.relation {
                             let trans_id = name.0[0].value.parse::<u32>().unwrap();
                             for assignment in assignments {

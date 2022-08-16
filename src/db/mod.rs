@@ -155,6 +155,36 @@ impl Database {
         self.save();
     }
 
+    pub(crate) fn update_tags_for_multiple_transactions(&mut self, where_clause: &Expr, tags: &[&str]) {
+        let mut transactions = HashSet::<u32>::new();
+        for trans_id in self.transactions.keys() {
+            transactions.insert(*trans_id);
+        }
+
+        transactions = self.filter_transactions(&transactions, &where_clause);
+
+        for tag in tags {
+            if !self.tag_name_to_id.contains_key(*tag) {
+                self.tag_name_to_id.insert(tag.to_string(), self.tag_id_seed);
+                self.tag_id_to_name.insert(self.tag_id_seed, tag.to_string());
+                self.tag_id_to_transactions.insert(self.tag_id_seed, vec![]);
+                self.tag_id_seed += 1;
+
+            }
+
+            let tag_id = self.tag_name_to_id.get(*tag).unwrap();
+            for trans_id in &transactions {
+                let transaction = self.transactions.get_mut(&trans_id).unwrap();
+                if !transaction.tags.contains(tag_id) {
+                    transaction.tags.push(*tag_id);
+                    self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
+                }
+            }
+        }
+
+        self.save();
+    }
+
     pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &[&str]) {
         info!("Removing tags {:?} from transaction {}", tags, trans_id);
         let transaction = self.transactions.get_mut(&trans_id).unwrap();
