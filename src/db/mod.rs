@@ -161,7 +161,7 @@ impl Database {
             transactions.insert(*trans_id);
         }
 
-        transactions = self.filter_transactions(&transactions, &where_clause);
+        transactions = self.filter_transactions(&transactions, where_clause);
 
         for tag in tags {
             if !self.tag_name_to_id.contains_key(*tag) {
@@ -174,7 +174,7 @@ impl Database {
 
             let tag_id = self.tag_name_to_id.get(*tag).unwrap();
             for trans_id in &transactions {
-                let transaction = self.transactions.get_mut(&trans_id).unwrap();
+                let transaction = self.transactions.get_mut(trans_id).unwrap();
                 if !transaction.tags.contains(tag_id) {
                     transaction.tags.push(*tag_id);
                     self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
@@ -350,7 +350,7 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
-            tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().as_str()).collect::<Vec<&str>>().join(", "),
+            tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>(),
         }).collect()
     }
 

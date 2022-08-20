@@ -100,7 +100,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
                         execute_copy(db, table_name, &target, inverse_amount);
                     },
 
-                    Statement::Update { table, assignments, selection: Some(from_clause), .. } => {
+                    Statement::Update { assignments, selection: Some(from_clause), .. } => {
                         for assignment in assignments {
                             if assignment.id[0].value == "tags" {
                                 if let Expr::Value(Value::SingleQuotedString(tags)) = assignment.value {
