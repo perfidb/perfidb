@@ -8,7 +8,6 @@ use crate::transaction::Transaction;
 pub(crate) fn run_query(query: Box<Query>, db: &Database) {
     let Query { with: _, body, .. } = *query;
     if let SetExpr::Select(select) = body {
-        info!("{:?}", select.group_by);
 
         if let TableFactor::Table { name, .. } = &select.from[0].relation {
             // assume it always has at least 1 identifier

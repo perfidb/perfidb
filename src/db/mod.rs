@@ -288,6 +288,10 @@ impl Database {
                 left_result.union(&right_result).cloned().collect()
             },
 
+            Expr::Nested(n) => {
+                self.filter_transactions(transactions, n)
+            },
+
             Expr::Function(f) => {
                 let func_name: &String = &f.name.0[0].value;
                 if func_name.eq("month") && f.args.len() == 1 {
