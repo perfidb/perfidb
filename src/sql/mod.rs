@@ -5,7 +5,7 @@ use log::{info, warn};
 use sqlparser::ast::{CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
-use crate::{csv_reader, Database};
+use crate::{Config, csv_reader, Database};
 use crate::sql::query::run_query;
 use walkdir::WalkDir;
 
@@ -56,7 +56,7 @@ fn execute_insert(_db : &Database, _table_name :&str, values: &[Vec<Expr>]) {
     }
 }
 
-pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), ParserError> {
+pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config) -> Result<(), ParserError> {
     let dialect = GenericDialect {};
     let sql_parse_result = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str());
 
@@ -68,7 +68,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String) -> Result<(), Pa
             for statement in ast {
                 match statement {
                     Statement::Query(query) => {
-                        run_query(query, db);
+                        run_query(query, db, config);
                     },
 
                     Statement::Insert { table_name, source, .. } => {

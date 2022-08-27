@@ -2,11 +2,17 @@ mod db;
 mod csv_reader;
 mod transaction;
 mod sql;
+mod config;
+mod tagger;
 
+use std::fs;
+use std::path::Path;
 use clap::{Parser};
 use env_logger::Env;
+use log::info;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
+use crate::config::Config;
 use crate::db::Database;
 use crate::sql::parse_and_run_sql;
 
@@ -16,6 +22,9 @@ use crate::sql::parse_and_run_sql;
 struct Cli {
     /// Database file path
     file: String,
+
+    /// Tagging rules file
+    tagging_rules_file: Option<String>,
 }
 
 static COMMAND_HISTORY_FILE: &str = ".transdb_history";
@@ -25,6 +34,16 @@ fn main() {
     let cli :Cli = Cli::parse();
 
     let mut db= Database::load(cli.file.as_str());
+
+    let config :Config = match cli.tagging_rules_file {
+        Some(config_path) => {
+            let path = Path::new(config_path.as_str());
+            let config :Config = toml::from_slice::<Config>(&fs::read(path).unwrap()).unwrap();
+            info!("Loaded config: {:?}", config);
+            config
+        },
+        None => Config::empty()
+    };
 
 
     let mut rl = Editor::<()>::new();
@@ -41,7 +60,7 @@ fn main() {
                 if is_last {
                     let sql = sql_buffer.join("\n");
                     rl.add_history_entry(sql.trim());
-                    let result = parse_and_run_sql(&mut db, sql);
+                    let result = parse_and_run_sql(&mut db, sql, &config);
                     if let Err(err) = result {
                         println!("{}", err);
                     }

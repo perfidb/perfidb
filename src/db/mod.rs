@@ -40,6 +40,12 @@ struct TransactionRecord {
     tags: Vec<u32>,
 }
 
+impl TransactionRecord {
+    pub(crate) fn has_tags(&self) -> bool {
+        !self.tags.is_empty()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct Database {
     transaction_id_seed: u32,
@@ -202,6 +208,7 @@ impl Database {
     }
 
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
+        info!("{:?}", where_clause);
         match where_clause {
             Expr::BinaryOp{ left, op: BinaryOperator::Eq, right} => {
                 let left: &Expr = left;
@@ -231,7 +238,7 @@ impl Database {
             Expr::BinaryOp{ left: _, op: BinaryOperator::Like, right} => {
                 let right: &Expr = right;
                 if let Expr::Value(Value::SingleQuotedString(keyword)) = right {
-                    return match self.token_to_transactions.get(keyword) {
+                    return match self.token_to_transactions.get(&keyword.to_lowercase()) {
                         Some(transactions) => {
                             let mut results = HashSet::<u32>::new();
                             for trans_id in transactions{
@@ -243,6 +250,30 @@ impl Database {
                     };
                 }
 
+                HashSet::new()
+            },
+
+            // tags IS NULL
+            Expr::IsNull(expr) => {
+                // Had to unbox here. Rust 1.63
+                let expr :&Expr = &(*expr);
+                if let Identifier(ident) = expr {
+                    if ident.value == "tags" {
+                        return transactions.iter().filter(|id| !self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
+                    }
+                }
+                HashSet::new()
+            },
+
+            // tags IS NOT NULL
+            Expr::IsNotNull(expr) => {
+                // Had to unbox here. Rust 1.63
+                let expr :&Expr = &(*expr);
+                if let Identifier(ident) = expr {
+                    if ident.value == "tags" {
+                        return transactions.iter().filter(|id| self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
+                    }
+                }
                 HashSet::new()
             },
 
