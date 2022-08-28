@@ -2,9 +2,16 @@ use std::{fmt};
 use std::path::Path;
 use chrono::{NaiveDate, NaiveDateTime};
 use csv::StringRecord;
-use crate::transaction::Transaction;
 use log::{info};
 use regex::Regex;
+
+/// A transaction record in csv file
+pub(crate) struct Record {
+    pub(crate) account: String,
+    pub(crate) date: NaiveDateTime,
+    pub(crate) description: String,
+    pub(crate) amount: f32,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CsvError {
@@ -34,7 +41,7 @@ struct CsvHeaderIndex {
     credit_amount: Option<usize>,
 }
 
-pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount: bool) -> Result<Vec<Transaction>, CsvError> {
+pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount: bool) -> Result<Vec<Record>, CsvError> {
     if !file_path.exists() {
         return Err(CsvError::FileNotFoundError("File not found".to_string()));
     }
@@ -76,7 +83,7 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
         }
     };
 
-    let mut transactions :Vec<Transaction> = vec![];
+    let mut records :Vec<Record> = vec![];
     let inverse_amount :f32 = if inverse_amount { -1.0 } else { 1.0 };
     for record in rdr.records() {
         let row = record.unwrap();
@@ -84,18 +91,15 @@ pub(crate) fn read_transactions(account :&str, file_path: &Path, inverse_amount:
         let description = row.get(header_index.description).unwrap().to_string();
         let amount = parse_amount(&row, &header_index) * inverse_amount;
 
-        // TODO: remove 'id' field
-        transactions.push(Transaction {
-            id: 0,
+        records.push(Record {
             account: account.to_string(),
             date,
             description,
             amount,
-            tags: vec![]
         });
     }
 
-    Ok(transactions)
+    Ok(records)
 }
 
 fn parse_header_index(headers: &StringRecord) -> Result<CsvHeaderIndex, CsvError> {
@@ -155,7 +159,6 @@ fn parse_header_index(headers: &StringRecord) -> Result<CsvHeaderIndex, CsvError
             return Err(CsvError::InvalidFileError("Unable to locate amount column".to_string()));
         }
     }
-
 
     Ok(CsvHeaderIndex {
         date: date_index as usize,

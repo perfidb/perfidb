@@ -6,26 +6,9 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
 use sqlparser::ast::Expr::Identifier;
+use crate::csv_reader::Record;
 use crate::transaction::Transaction;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) enum TransactionKind {
-    Income,
-    Expense,
-    LargeExpense,
-    Transfer
-}
-
-impl fmt::Display for TransactionKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            TransactionKind::Income => write!(f, "Income"),
-            TransactionKind::Expense => write!(f, "Expense"),
-            TransactionKind::LargeExpense => write!(f, "LargeExpense"),
-            TransactionKind::Transfer => write!(f, "Transfer"),
-        }
-    }
-}
 
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
@@ -99,7 +82,7 @@ impl Database {
     }
 
 
-    pub(crate) fn upsert(&mut self, t: &Transaction) {
+    pub(crate) fn upsert(&mut self, t: &Record) {
         let trans_id = self.transaction_id_seed;
 
         // increment seed
