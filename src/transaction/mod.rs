@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 
 /// Hold transaction info returned from database query
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Transaction {
     pub(crate) id: u32,
     pub(crate) account: String,

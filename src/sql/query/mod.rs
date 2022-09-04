@@ -6,7 +6,7 @@ use crate::{Config, Database};
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
-pub(crate) fn run_query(query: Box<Query>, db: &Database, config: &Config) {
+pub(crate) fn run_query(query: Box<Query>, db: &mut Database, config: &Config) {
     let Query { with: _, body, .. } = *query;
     if let SetExpr::Select(select) = body {
 

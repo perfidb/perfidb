@@ -4,6 +4,7 @@ mod transaction;
 mod sql;
 mod config;
 mod tagger;
+mod live_edit;
 
 use std::fs;
 use std::path::Path;
@@ -12,6 +13,8 @@ use env_logger::Env;
 use log::info;
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
+use std::io::{stdout, Write};
+use std::time::Duration;
 use crate::config::Config;
 use crate::db::Database;
 use crate::sql::parse_and_run_sql;
@@ -55,15 +58,24 @@ fn main() {
         let readline = rl.readline("# ");
         match readline {
             Ok(line) => {
+                let line = line.trim();
                 let is_last = line.ends_with(';');
-                sql_buffer.push(line);
+                if !line.is_empty() {
+                    sql_buffer.push(line.to_string());
+                }
                 if is_last {
                     let sql = sql_buffer.join("\n");
-                    rl.add_history_entry(sql.trim());
-                    let result = parse_and_run_sql(&mut db, sql, &config);
-                    if let Err(err) = result {
-                        println!("{}", err);
+
+                    if sql == "active;" {
+                        live_edit::live_label(&mut db).unwrap();
+                    } else {
+                        rl.add_history_entry(sql.trim());
+                        let result = parse_and_run_sql(&mut db, sql, &config);
+                        if let Err(err) = result {
+                            println!("{}", err);
+                        }
                     }
+
                     sql_buffer.clear();
                 }
             },

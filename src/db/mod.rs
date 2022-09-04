@@ -52,6 +52,9 @@ pub(crate) struct Database {
 
     #[serde(skip_serializing, skip_deserializing)]
     file_path: Option<String>,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    pub(crate) last_query_results: Option<Vec<Transaction>>,
 }
 
 impl Database {
@@ -66,6 +69,7 @@ impl Database {
             tag_id_to_transactions: HashMap::new(),
             token_to_transactions: HashMap::new(),
             file_path,
+            last_query_results: None,
         }
     }
 
@@ -349,7 +353,7 @@ impl Database {
 
 
     /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
-    pub(crate) fn query(&self, account: &str, where_clause: Option<Expr>) -> Vec<Transaction> {
+    pub(crate) fn query(&mut self, account: &str, where_clause: Option<Expr>) -> Vec<Transaction> {
         let mut transactions = self.transactions.values().filter(|t| {
             account == "all" || account == t.account
         }).map(|t| t.id).collect::<HashSet<u32>>();
@@ -362,14 +366,20 @@ impl Database {
 
         transactions.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
 
-        transactions.iter().map(|t| Transaction {
+        let results :Vec<Transaction> = transactions.iter().map(|t| Transaction {
             id: t.id,
             account: t.account.clone(),
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
             tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>(),
-        }).collect()
+        }).collect();
+
+        if !results.is_empty() {
+            self.last_query_results = Some(results.clone());
+        }
+
+        results
     }
 
     /// Save db content to disk
