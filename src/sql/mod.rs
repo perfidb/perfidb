@@ -134,9 +134,9 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config)
     Ok(())
 }
 
-fn update_transaction_tags(db: &mut Database, trans_id: u32, tag_value_expr: Expr) {
+pub(crate) fn update_transaction_tags(db: &mut Database, trans_id: u32, tag_value_expr: Expr) {
     if let Expr::Value(Value::SingleQuotedString(tags)) = tag_value_expr {
-        let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
+        // let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
         db.update_tags(trans_id, &tags);
         return;
     }

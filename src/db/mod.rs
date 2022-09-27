@@ -1,14 +1,15 @@
-use std::{fmt, fs};
+use std::{fs};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::{Path};
+use std::path::Path;
+
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
 use log::info;
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
 use sqlparser::ast::Expr::Identifier;
+
 use crate::csv_reader::Record;
 use crate::transaction::Transaction;
-
 
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,7 +55,7 @@ pub(crate) struct Database {
     file_path: Option<String>,
 
     #[serde(skip_serializing, skip_deserializing)]
-    pub(crate) last_query_results: Option<Vec<Transaction>>,
+    pub(crate) last_query_results: Option<Vec<u32>>,
 }
 
 impl Database {
@@ -125,8 +126,38 @@ impl Database {
         }
     }
 
-    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &[&str]) {
-        info!("Updating tags {:?} for transaction {}", tags, trans_id);
+    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &String) {
+        let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
+
+        let mut existing_tags = HashSet::<String>::new();
+        for tag_id in self.transactions.get(&trans_id).unwrap().tags.iter() {
+            existing_tags.insert(self.tag_id_to_name.get(tag_id).unwrap().clone());
+        }
+
+        let mut tags_to_remove :Vec<&str> = vec![];
+        let mut tags_to_add :Vec<&str> = vec![];
+        for existing_tag in existing_tags.iter() {
+            if !tags.contains(&existing_tag.as_str()) {
+                tags_to_remove.push(existing_tag);
+            }
+        }
+        for new_tag in tags {
+            if !existing_tags.contains(new_tag) {
+                tags_to_add.push(new_tag);
+            }
+        }
+
+        if !tags_to_remove.is_empty() {
+            self.remove_tags(trans_id, &tags_to_remove);
+        }
+
+        if !tags_to_add.is_empty() {
+            self.add_tags(trans_id, &tags_to_add);
+        }
+    }
+
+    pub(crate) fn add_tags(&mut self, trans_id: u32, tags: &[&str]) {
+        info!("Adding tags {:?} for transaction {}", tags, trans_id);
 
         for tag in tags {
             if !self.tag_name_to_id.contains_key(*tag) {
@@ -193,6 +224,8 @@ impl Database {
 
         self.save();
     }
+
+
 
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
         info!("{:?}", where_clause);
@@ -364,7 +397,9 @@ impl Database {
 
         let mut transactions = transactions.iter().map(|id| self.transactions.get(id).unwrap()).collect::<Vec<&TransactionRecord>>();
 
-        transactions.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
+        transactions.sort_by(|a, b| {
+            a.date.partial_cmp(&b.date).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
+        });
 
         let results :Vec<Transaction> = transactions.iter().map(|t| Transaction {
             id: t.id,
@@ -376,10 +411,23 @@ impl Database {
         }).collect();
 
         if !results.is_empty() {
-            self.last_query_results = Some(results.clone());
+            self.last_query_results = Some(results.iter().map(|t|t.id).collect());
         }
 
         results
+    }
+
+    pub(crate) fn find_by_id(&self, id: u32) -> Transaction {
+        let t = self.transactions.get(&id).unwrap();
+        // TODO: use a function to format tags
+        Transaction {
+            id: t.id,
+            account: t.account.clone(),
+            date: t.date,
+            description: t.description.clone(),
+            amount: t.amount,
+            tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>(),
+        }
     }
 
     /// Save db content to disk
@@ -393,6 +441,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
     use super::*;
 
     #[test]

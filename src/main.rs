@@ -1,3 +1,16 @@
+use std::fs;
+use std::path::Path;
+
+use clap::Parser;
+use env_logger::Env;
+use log::info;
+use rustyline::Editor;
+use rustyline::error::ReadlineError;
+
+use crate::config::Config;
+use crate::db::Database;
+use crate::sql::parse_and_run_sql;
+
 mod db;
 mod csv_reader;
 mod transaction;
@@ -5,19 +18,6 @@ mod sql;
 mod config;
 mod tagger;
 mod live_edit;
-
-use std::fs;
-use std::path::Path;
-use clap::{Parser};
-use env_logger::Env;
-use log::info;
-use rustyline::Editor;
-use rustyline::error::ReadlineError;
-use std::io::{stdout, Write};
-use std::time::Duration;
-use crate::config::Config;
-use crate::db::Database;
-use crate::sql::parse_and_run_sql;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -65,11 +65,15 @@ fn main() {
                 }
                 if is_last {
                     let sql = sql_buffer.join("\n");
+                    rl.add_history_entry(sql.trim());
 
                     if sql == "active;" {
-                        live_edit::live_label(&mut db).unwrap();
+                        if let Some(last_results) = &db.last_query_results {
+                            live_edit::live_label(last_results.clone(), &mut db).unwrap();
+                        } else {
+                            info!("No recent query results");
+                        }
                     } else {
-                        rl.add_history_entry(sql.trim());
                         let result = parse_and_run_sql(&mut db, sql, &config);
                         if let Err(err) = result {
                             println!("{}", err);

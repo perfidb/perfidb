@@ -1,62 +1,76 @@
-use std::io::{Error, stdout, Write};
-use comfy_table::{Cell, Table, TableComponent};
-use crossterm::{execute, terminal, QueueableCommand, cursor};
+use std::io::{Error, stdout};
+
+use crossterm::{cursor, execute, QueueableCommand, terminal};
 use crossterm::cursor::{MoveDown, MoveTo, MoveToColumn, MoveUp};
 use crossterm::event::{Event, KeyCode, read};
-use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::style::{self, Color, SetBackgroundColor, SetForegroundColor, Stylize};
+use crossterm::terminal::{ClearType, EnterAlternateScreen, LeaveAlternateScreen};
+
 use crate::Database;
 use crate::transaction::Transaction;
 
 /// Open a terminal dialog to label transactions in a live table
-pub(crate) fn live_label(db: &mut Database) -> Result<(), Error> {
-    if let Some(transactions) = &db.last_query_results {
-        execute!(stdout(), EnterAlternateScreen, MoveTo(0, 0))?;
-        terminal::enable_raw_mode()?;
-        // TODO: handle terminal resize
-        let (columns, rows) = terminal::size()?;
+/// It takes last_query_results as a list of ids because we might change labels, so we'll need to re-render labels.
+pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database) -> Result<(), Error> {
+    let mut transactions: Vec<Transaction> = last_query_results.iter().map(|trans_id| db.find_by_id(*trans_id)).collect();
 
-        let mut window = Window {
-            rows,
-            transactions_count: transactions.len(),
-            offset: 0,
-            selected_row: 0
-        };
+    execute!(stdout(), EnterAlternateScreen, MoveTo(0, 0))?;
+    terminal::enable_raw_mode()?;
+    // TODO: handle terminal resize
+    let (_columns, rows) = terminal::size()?;
 
-        repaint_window(window.repaint(), &transactions, window.selected_row);
+    let mut window = Window {
+        rows,
+        transactions_count: transactions.len(),
+        offset: 0,
+        selected_row: 0
+    };
 
-        loop {
-            // `read()` blocks until an `Event` is available
-            match read().unwrap() {
-                Event::FocusGained => println!("FocusGained"),
-                Event::FocusLost => println!("FocusLost"),
-                Event::Key(event) => {
-                    if let KeyCode::Char(c) = event.code {
-                        match c {
-                            'q' => break,
-                            'j' => {
-                                let delta = window.move_down();
-                                repaint_window(delta, &transactions, window.selected_row);
-                            },
-                            'k' => {
-                                let delta = window.move_up();
-                                repaint_window(delta, &transactions, window.selected_row);
-                            },
-                            _ => {}
-                        }
+    repaint_window(window.repaint(), &transactions, window.selected_row);
+
+    loop {
+        // `read()` blocks until an `Event` is available
+        match read().unwrap() {
+            Event::FocusGained => println!("FocusGained"),
+            Event::FocusLost => println!("FocusLost"),
+            Event::Key(event) => {
+                if let KeyCode::Char(c) = event.code {
+                    match c {
+                        'q' => break,
+                        'j' => {
+                            let delta = window.move_down();
+                            repaint_window(delta, &transactions, window.selected_row);
+                        },
+                        'k' => {
+                            let delta = window.move_up();
+                            repaint_window(delta, &transactions, window.selected_row);
+                        },
+                        'l' => {
+                            execute!(stdout(), MoveTo(114, window.selected_row)).unwrap();
+                            terminal::disable_raw_mode().unwrap();
+                            let mut new_labels = String::new();
+                            std::io::stdin().read_line(&mut new_labels)?;
+                            let trans_id = transactions[window.selected_transaction_index()].id;
+                            db.update_tags(trans_id, &new_labels);
+                            transactions[window.selected_transaction_index()].tags = db.find_by_id(trans_id).tags;
+                            terminal::enable_raw_mode().unwrap();
+                            repaint_window(vec![(window.selected_row, window.offset + window.selected_row as usize, true)], &transactions, window.selected_row);
+                            execute!(stdout(), MoveTo(114, window.selected_row)).unwrap();
+                        },
+                        _ => {}
                     }
-                },
-                Event::Mouse(event) => println!("{:?}", event),
-                #[cfg(feature = "bracketed-paste")]
-                Event::Paste(data) => println!("{:?}", data),
-                Event::Resize(width, height) => println!("New size {}x{}", width, height),
-                Event::Paste(s) => println!("{}", s),
-            }
+                }
+            },
+            Event::Mouse(event) => println!("{:?}", event),
+            #[cfg(feature = "bracketed-paste")]
+            Event::Paste(data) => println!("{:?}", data),
+            Event::Resize(width, height) => println!("New size {}x{}", width, height),
+            Event::Paste(s) => println!("{}", s),
         }
-
-        terminal::disable_raw_mode()?;
-        execute!(stdout(), LeaveAlternateScreen)?;
     }
+
+    terminal::disable_raw_mode()?;
+    execute!(stdout(), LeaveAlternateScreen)?;
 
     Ok(())
 }
@@ -76,6 +90,10 @@ struct Window {
 }
 
 impl Window {
+    fn selected_transaction_index(&self) -> usize {
+        return self.offset + self.selected_row as usize;
+    }
+
     fn repaint(&mut self) -> Vec<(u16, usize, bool)> {
         let remaining_trans_count = self.transactions_count - self.offset;
         let print_trains_count :usize = if remaining_trans_count > self.offset as usize { self.rows as usize } else { remaining_trans_count };
@@ -160,7 +178,14 @@ fn print_transaction(t: &Transaction, highlight: bool) {
     if highlight {
         execute!(stdout(), SetForegroundColor(Color::Black), SetBackgroundColor(Color::White)).unwrap();
     }
-    execute!(stdout(), style::Print(format!("|{}|{}|{}|{}|{}|{}|", t.id, t.account, t.date, t.description, t.amount, t.tags_display())), MoveToColumn(0)).unwrap();
+    let desc = if t.description.len() > 50 {
+        let mut cut_down_version = t.description[0..49].to_owned();
+        cut_down_version.push('…');
+        cut_down_version
+    } else {
+        t.description.clone()
+    };
+    execute!(stdout(), style::Print(format!("| {:4} | {:14} | {} | {:50} | {:10} | {:15} |", t.id, t.account, t.date, desc, t.amount, t.tags_display())), MoveToColumn(0)).unwrap();
     if highlight {
         execute!(stdout(), SetForegroundColor(Color::White), SetBackgroundColor(Color::Black)).unwrap();
     }
