@@ -401,14 +401,7 @@ impl Database {
             a.date.partial_cmp(&b.date).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
         });
 
-        let results :Vec<Transaction> = transactions.iter().map(|t| Transaction {
-            id: t.id,
-            account: t.account.clone(),
-            date: t.date,
-            description: t.description.clone(),
-            amount: t.amount,
-            tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>(),
-        }).collect();
+        let results :Vec<Transaction> = transactions.iter().map(|t| self.to_transaction(t)).collect();
 
         if !results.is_empty() {
             self.last_query_results = Some(results.iter().map(|t|t.id).collect());
@@ -419,15 +412,7 @@ impl Database {
 
     pub(crate) fn find_by_id(&self, id: u32) -> Transaction {
         let t = self.transactions.get(&id).unwrap();
-        // TODO: use a function to format tags
-        Transaction {
-            id: t.id,
-            account: t.account.clone(),
-            date: t.date,
-            description: t.description.clone(),
-            amount: t.amount,
-            tags: t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>(),
-        }
+        self.to_transaction(t)
     }
 
     /// Save db content to disk
@@ -435,8 +420,13 @@ impl Database {
         let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
         fs::write((&self.file_path).as_ref().unwrap(), encoded).expect("Unable to write to database file");
     }
-}
 
+    fn to_transaction(&self, t: &TransactionRecord) -> Transaction {
+        // TODO: use a function to format tags
+        Transaction::new(t.id, t.account.clone(), t.date, t.description.as_str(), t.amount,
+                         t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>())
+    }
+}
 
 #[cfg(test)]
 mod tests {

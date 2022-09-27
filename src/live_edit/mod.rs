@@ -5,6 +5,7 @@ use crossterm::cursor::{MoveDown, MoveTo, MoveToColumn, MoveUp};
 use crossterm::event::{Event, KeyCode, read};
 use crossterm::style::{self, Color, SetBackgroundColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{ClearType, EnterAlternateScreen, LeaveAlternateScreen};
+use log::warn;
 
 use crate::Database;
 use crate::transaction::Transaction;
@@ -96,9 +97,9 @@ impl Window {
 
     fn repaint(&mut self) -> Vec<(u16, usize, bool)> {
         let remaining_trans_count = self.transactions_count - self.offset;
-        let print_trains_count :usize = if remaining_trans_count > self.offset as usize { self.rows as usize } else { remaining_trans_count };
+        let print_trans_count :usize = if remaining_trans_count > self.rows as usize { self.rows as usize } else { remaining_trans_count };
         let mut delta :Vec<(u16, usize, bool)> = vec![(0, 0, true)];
-        for i in 1..print_trains_count {
+        for i in 1..print_trans_count {
             delta.push((i as u16, i, false));
         }
         delta
