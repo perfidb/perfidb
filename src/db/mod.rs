@@ -239,11 +239,7 @@ impl Database {
                         if let Expr::Value(Value::SingleQuotedString(tag)) = right {
                             return match self.tag_name_to_id.get(tag) {
                                 Some(tag_id) => {
-                                    let mut results = HashSet::<u32>::new();
-                                    for trans_id in self.tag_id_to_transactions.get(tag_id).unwrap() {
-                                        results.insert(*trans_id);
-                                    }
-                                    results
+                                    transactions.iter().filter(|id| self.transactions.get(id).unwrap().tags.contains(tag_id)).cloned().collect::<HashSet<u32>>()
                                 },
                                 None => HashSet::new()
                             };
@@ -387,9 +383,11 @@ impl Database {
 
     /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
     pub(crate) fn query(&mut self, account: &str, where_clause: Option<Expr>) -> Vec<Transaction> {
-        let mut transactions = self.transactions.values().filter(|t| {
-            account == "all" || account == t.account
-        }).map(|t| t.id).collect::<HashSet<u32>>();
+        let mut transactions = if account == "db" {
+            self.transactions.keys().cloned().collect::<HashSet<u32>>()
+        } else {
+            self.transactions.values().filter(|t| account == t.account).map(|t| t.id).collect::<HashSet<u32>>()
+        };
 
         if let Some(where_clause) = where_clause {
             transactions = self.filter_transactions(&transactions, &where_clause);
