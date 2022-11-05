@@ -1,6 +1,7 @@
 mod query;
 
 use std::path::Path;
+use comfy_table::{Table, TableComponent};
 use log::{info, warn};
 use sqlparser::ast::{CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
@@ -9,15 +10,28 @@ use crate::{Config, csv_reader, Database};
 use crate::sql::query::run_query;
 use walkdir::WalkDir;
 
-fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool) {
+fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool, dry_run: bool) {
     let result = csv_reader::read_transactions(table_name, path, inverse_amount);
     match result {
-        Ok(transactions) => {
-            for t in &transactions {
-                db.upsert(t);
+        Ok(records) => {
+            if dry_run {
+                let mut table = Table::new();
+                table.set_header(vec!["Account", "Date", "Description", "Amount"]);
+                table.remove_style(TableComponent::HorizontalLines);
+                table.remove_style(TableComponent::MiddleIntersections);
+                table.remove_style(TableComponent::LeftBorderIntersections);
+                table.remove_style(TableComponent::RightBorderIntersections);
+                for r in &records {
+                    table.add_row(vec![r.account.as_str(), r.date.to_string().as_str(), r.description.as_str(), format!("{:.2}", r.amount).as_str()]);
+                }
+                println!("{table}");
+            } else {
+                for r in &records {
+                    db.upsert(r);
+                }
+                db.save();
+                println!("Imported {} transactions", &records.len());
             }
-            db.save();
-            println!("Imported {} transactions", &transactions.len());
         },
         Err(e) => {
             println!("{}", e);
@@ -26,7 +40,7 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
 
 }
 
-fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inverse_amount: bool) {
+fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inverse_amount: bool, dry_run: bool) {
     match target {
         CopyTarget::File { filename} => {
             let path = Path::new(filename);
@@ -35,12 +49,12 @@ fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inver
                     let dir_entry = entry.unwrap();
                     if dir_entry.path().is_file() {
                         println!("Copying from {}", dir_entry.path().display());
-                        copy_from_csv(dir_entry.path(), db, table_name, inverse_amount);
+                        copy_from_csv(dir_entry.path(), db, table_name, inverse_amount, dry_run);
                     }
                 }
             } else if path.is_file() {
                 println!("Copying from {}", path.display());
-                copy_from_csv(path, db, table_name, inverse_amount);
+                copy_from_csv(path, db, table_name, inverse_amount, dry_run);
             }
         },
         _ => {
@@ -88,16 +102,19 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config)
 
                         // should we inverse amount value
                         let mut inverse_amount = false;
+                        let mut dry_run = false;
                         for option in options {
                             if let CopyOption::Format(ident) = option {
                                 let format_value = ident.value.to_lowercase();
                                 if format_value == "i" || format_value == "inverse" {
                                     inverse_amount = true;
+                                } else if format_value == "dryrun" {
+                                    dry_run = true;
                                 }
                             }
                         }
 
-                        execute_copy(db, table_name, &target, inverse_amount);
+                        execute_copy(db, table_name, &target, inverse_amount, dry_run);
                     },
 
                     Statement::Update { assignments, selection: Some(from_clause), .. } => {

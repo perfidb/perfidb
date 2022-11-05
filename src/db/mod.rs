@@ -234,17 +234,54 @@ impl Database {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
-                if let Identifier(ident) = left {
-                    if ident.value == "tags" {
-                        if let Expr::Value(Value::SingleQuotedString(tag)) = right {
-                            return match self.tag_name_to_id.get(tag) {
-                                Some(tag_id) => {
-                                    transactions.iter().filter(|id| self.transactions.get(id).unwrap().tags.contains(tag_id)).cloned().collect::<HashSet<u32>>()
-                                },
-                                None => HashSet::new()
-                            };
+                match (*left).clone() {
+                    Identifier(ident) => {
+                        match ident.value.to_lowercase().as_str() {
+                            // WHERE label = '...'
+                            "label" => {
+                                if let Expr::Value(Value::SingleQuotedString(tag)) = right {
+                                    return match self.tag_name_to_id.get(tag) {
+                                        Some(tag_id) => {
+                                            transactions.iter().filter(|id| self.transactions.get(id).unwrap().tags.contains(tag_id)).cloned().collect::<HashSet<u32>>()
+                                        },
+                                        None => HashSet::new()
+                                    };
+                                }
+                            },
+
+                            "date" => {
+                                if let Expr::Value(Value::Number(num_str, _)) = right {
+                                    let date = num_str.parse::<u32>().unwrap();
+                                    // if month
+                                    if date >= 1 && date <= 12 {
+                                        let month = date;
+                                        let today = Utc::now().naive_utc().date();
+                                        let mut year = today.year();
+                                        if month >= today.month() {
+                                            year -= 1;
+                                        }
+
+                                        let first_day = NaiveDate::from_ymd(year, month, 1);
+                                        let next_month = if month == 12 { 1 } else { month + 1 };
+                                        let next_month_year = if month == 12 { year + 1 } else { year };
+                                        let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
+
+                                        let mut trans_in_date_range = HashSet::<u32>::new();
+                                        for (_, trans_ids) in self.date_index.range(first_day..first_day_next_month) {
+                                            for id in trans_ids {
+                                                trans_in_date_range.insert(*id);
+                                            }
+                                        }
+
+                                        return transactions.intersection(&trans_in_date_range).cloned().collect();
+                                    }
+                                }
+                            },
+
+                            &_ => {}
                         }
                     }
+                    _ => {}
                 }
 
                 HashSet::new()
@@ -339,43 +376,6 @@ impl Database {
                 self.filter_transactions(transactions, n)
             },
 
-            Expr::Function(f) => {
-                let func_name: &String = &f.name.0[0].value;
-                if func_name.eq("month") && f.args.len() == 1 {
-                    if let FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Value(value))) = &f.args[0] {
-                        match value {
-                            Value::Number(number, _) => {
-                                let month = number.parse::<u32>().unwrap();
-                                let today = Utc::now().naive_utc().date();
-                                let mut year = today.year();
-                                if month >= today.month() {
-                                    year -= 1;
-                                }
-
-                                let first_day = NaiveDate::from_ymd(year, month, 1);
-                                let next_month = if month == 12 { 1 } else { month + 1 };
-                                let next_month_year = if month == 12 { year + 1 } else { year };
-                                let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
-
-                                let mut transactions = HashSet::<u32>::new();
-                                for (_, trans_ids) in self.date_index.range(first_day..first_day_next_month) {
-                                    for id in trans_ids {
-                                        transactions.insert(*id);
-                                    }
-                                }
-
-                                info!("{} {}", first_day, first_day_next_month);
-
-                                return transactions;
-                            },
-                            _ => {
-                                return HashSet::new();
-                            }
-                        }
-                    }
-                }
-                HashSet::new()
-            },
             _ => HashSet::new()
         }
     }
