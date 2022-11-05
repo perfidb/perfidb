@@ -1,4 +1,6 @@
-use std::{fs};
+mod filter;
+
+use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
@@ -9,6 +11,8 @@ use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
 use sqlparser::ast::Expr::Identifier;
 
 use crate::csv_reader::Record;
+use crate::db::filter::handle_equals;
+use crate::db::filter::handle_unequal;
 use crate::transaction::Transaction;
 
 /// Internal representation of a transaction record in database
@@ -230,62 +234,20 @@ impl Database {
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
         info!("{:?}", where_clause);
         match where_clause {
-            Expr::BinaryOp{ left, op: BinaryOperator::Eq, right} => {
+            Expr::BinaryOp{ left, op: BinaryOperator::Eq, right } => {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
-                match (*left).clone() {
-                    Identifier(ident) => {
-                        match ident.value.to_lowercase().as_str() {
-                            // WHERE label = '...'
-                            "label" => {
-                                if let Expr::Value(Value::SingleQuotedString(tag)) = right {
-                                    return match self.tag_name_to_id.get(tag) {
-                                        Some(tag_id) => {
-                                            transactions.iter().filter(|id| self.transactions.get(id).unwrap().tags.contains(tag_id)).cloned().collect::<HashSet<u32>>()
-                                        },
-                                        None => HashSet::new()
-                                    };
-                                }
-                            },
-
-                            "date" => {
-                                if let Expr::Value(Value::Number(num_str, _)) = right {
-                                    let date = num_str.parse::<u32>().unwrap();
-                                    // if month
-                                    if date >= 1 && date <= 12 {
-                                        let month = date;
-                                        let today = Utc::now().naive_utc().date();
-                                        let mut year = today.year();
-                                        if month >= today.month() {
-                                            year -= 1;
-                                        }
-
-                                        let first_day = NaiveDate::from_ymd(year, month, 1);
-                                        let next_month = if month == 12 { 1 } else { month + 1 };
-                                        let next_month_year = if month == 12 { year + 1 } else { year };
-                                        let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
-
-                                        let mut trans_in_date_range = HashSet::<u32>::new();
-                                        for (_, trans_ids) in self.date_index.range(first_day..first_day_next_month) {
-                                            for id in trans_ids {
-                                                trans_in_date_range.insert(*id);
-                                            }
-                                        }
-
-                                        return transactions.intersection(&trans_in_date_range).cloned().collect();
-                                    }
-                                }
-                            },
-
-                            &_ => {}
-                        }
-                    }
-                    _ => {}
-                }
-
-                HashSet::new()
+                handle_equals((*left).clone(), (*right).clone(), &self, &transactions)
             },
+
+            Expr::BinaryOp{ left, op: BinaryOperator::NotEq, right } => {
+                let left: &Expr = left;
+                let right: &Expr = right;
+
+                handle_unequal((*left).clone(), (*right).clone(), &self, &transactions)
+            },
+
 
             // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
             Expr::BinaryOp{ left: _, op: BinaryOperator::Like, right} => {
@@ -311,7 +273,7 @@ impl Database {
                 // Had to unbox here. Rust 1.63
                 let expr :&Expr = &(*expr);
                 if let Identifier(ident) = expr {
-                    if ident.value == "tags" {
+                    if ident.value == "label" {
                         return transactions.iter().filter(|id| !self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
                     }
                 }
@@ -323,7 +285,7 @@ impl Database {
                 // Had to unbox here. Rust 1.63
                 let expr :&Expr = &(*expr);
                 if let Identifier(ident) = expr {
-                    if ident.value == "tags" {
+                    if ident.value == "label" {
                         return transactions.iter().filter(|id| self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
                     }
                 }
