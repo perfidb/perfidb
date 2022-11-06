@@ -3,7 +3,7 @@ use sqlparser::ast::{Expr, Value};
 use sqlparser::ast::Expr::Identifier;
 use crate::Database;
 
-pub(crate) fn handle_unequal(left: Expr, right: Expr, database: &Database, transactions: &HashSet<u32>) -> HashSet<u32> {
+pub(crate) fn handle_not_equal(left: Expr, right: Expr, database: &Database, transactions: &HashSet<u32>) -> HashSet<u32> {
     match left {
         Identifier(ident) => {
             match ident.value.to_lowercase().as_str() {

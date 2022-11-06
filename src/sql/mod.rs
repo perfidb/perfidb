@@ -47,7 +47,7 @@ fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inver
             if path.is_dir() {
                 for entry in WalkDir::new(path).into_iter() {
                     let dir_entry = entry.unwrap();
-                    if dir_entry.path().is_file() {
+                    if dir_entry.path().is_file() && !dir_entry.file_name().to_str().unwrap().starts_with('.') {
                         println!("Copying from {}", dir_entry.path().display());
                         copy_from_csv(dir_entry.path(), db, table_name, inverse_amount, dry_run);
                     }

@@ -4,16 +4,15 @@ use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
-use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
+use chrono::{NaiveDate, NaiveDateTime};
 use log::info;
 use serde::{Deserialize, Serialize};
-use sqlparser::ast::{BinaryOperator, Expr, FunctionArg, FunctionArgExpr, Value};
+use sqlparser::ast::{BinaryOperator, Expr};
 use sqlparser::ast::Expr::Identifier;
 
 use crate::csv_reader::Record;
-use crate::db::filter::handle_equals;
-use crate::db::filter::handle_unequal;
 use crate::transaction::Transaction;
+
 
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
@@ -229,46 +228,33 @@ impl Database {
         self.save();
     }
 
-
-
+    /// Filter transactions based on the given SQL where clause.
+    /// Returns the set of transaction ids after applying the filter.
     fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
         info!("{:?}", where_clause);
+
         match where_clause {
             Expr::BinaryOp{ left, op: BinaryOperator::Eq, right } => {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
-                handle_equals((*left).clone(), (*right).clone(), &self, &transactions)
+                filter::handle_equals((*left).clone(), (*right).clone(), &self, &transactions)
             },
 
             Expr::BinaryOp{ left, op: BinaryOperator::NotEq, right } => {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
-                handle_unequal((*left).clone(), (*right).clone(), &self, &transactions)
+                filter::handle_not_equal((*left).clone(), (*right).clone(), &self, &transactions)
             },
-
 
             // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
             Expr::BinaryOp{ left: _, op: BinaryOperator::Like, right} => {
                 let right: &Expr = right;
-                if let Expr::Value(Value::SingleQuotedString(keyword)) = right {
-                    return match self.token_to_transactions.get(&keyword.to_lowercase()) {
-                        Some(transactions) => {
-                            let mut results = HashSet::<u32>::new();
-                            for trans_id in transactions{
-                                results.insert(*trans_id);
-                            }
-                            results
-                        },
-                        None => HashSet::new()
-                    };
-                }
-
-                HashSet::new()
+                filter::handle_like((*right).clone(), &transactions, &self)
             },
 
-            // tags IS NULL
+            // label IS NULL
             Expr::IsNull(expr) => {
                 // Had to unbox here. Rust 1.63
                 let expr :&Expr = &(*expr);
@@ -280,7 +266,7 @@ impl Database {
                 HashSet::new()
             },
 
-            // tags IS NOT NULL
+            // label IS NOT NULL
             Expr::IsNotNull(expr) => {
                 // Had to unbox here. Rust 1.63
                 let expr :&Expr = &(*expr);
