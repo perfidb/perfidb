@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use sqlparser::ast::{BinaryOperator, Expr, Value};
+use sqlparser::ast::{Expr, Value};
 use crate::db::Database;
 
 /// Handles SQL LIKE where clause

@@ -257,7 +257,7 @@ impl Database {
             // label IS NULL
             Expr::IsNull(expr) => {
                 // Had to unbox here. Rust 1.63
-                let expr :&Expr = &(*expr);
+                let expr :&Expr = expr;
                 if let Identifier(ident) = expr {
                     if ident.value == "label" {
                         return transactions.iter().filter(|id| !self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();

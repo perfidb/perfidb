@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use comfy_table::{Table, TableComponent, Cell, Color};
+use chrono::NaiveDateTime;
+use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
 use log::{warn};
 use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, TableFactor};
 use crate::{Config, Database};
@@ -25,7 +26,7 @@ pub(crate) fn run_query(query: Box<Query>, db: &mut Database, config: &Config) {
             if auto_tag {
                 let tagger = Tagger::new(config);
                 for t in transactions.iter_mut() {
-                    let new_tags = tagger.tag(&t);
+                    let new_tags = tagger.tag(t);
                     t.tags = new_tags;
                 }
             }
@@ -70,7 +71,7 @@ fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {
 }
 
 fn handle_normal_select(transactions: &[Transaction], table: &mut Table, projection: &[SelectItem]) {
-    table.set_header(vec!["ID", "Account", "Date", "Description", "Amount", "Tags"]);
+    table.set_header(vec!["ID", "Account", "Date", "Description", "Amount", "Labels"]);
 
     let mut is_tagging = false;
     if let SelectItem::UnnamedExpr(Expr::Function(func)) = &projection[0] {
@@ -81,11 +82,11 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
     for t in transactions {
         table.add_row(vec![
-            set_cell_style(t, Cell::new(t.id.to_string().as_str()), is_tagging),
+            set_cell_style(t, Cell::new(t.id.to_string().as_str()), is_tagging).set_alignment(CellAlignment::Right),
             set_cell_style(t, Cell::new(t.account.as_str()), is_tagging),
-            set_cell_style(t, Cell::new(t.date.to_string().as_str()), is_tagging),
+            set_cell_style(t, Cell::new(format_date(t.date).as_str()), is_tagging),
             set_cell_style(t, Cell::new(t.description.as_str()), is_tagging),
-            set_cell_style(t, Cell::new(t.amount.to_string().as_str()), is_tagging),
+            set_cell_style(t, Cell::new(format_amount(t.amount).as_str()), is_tagging).set_alignment(CellAlignment::Right),
             set_cell_style(t, Cell::new(t.tags_display().as_str()), is_tagging)
         ]);
     }
@@ -127,4 +128,13 @@ fn group_by_tags(transactions: &[Transaction], table: &mut Table) {
     }
 
     println!("{table}");
+}
+
+/// Format $ amount
+fn format_amount(amount: f32) -> String {
+    format!("{:.2}", amount)
+}
+
+fn format_date(date: NaiveDateTime) -> String {
+    date.format("%Y-%m-%d").to_string()
 }

@@ -1,11 +1,10 @@
 use std::io::{Error, stdout};
 
-use crossterm::{cursor, execute, QueueableCommand, terminal};
-use crossterm::cursor::{MoveDown, MoveTo, MoveToColumn, MoveUp};
+use crossterm::{execute, terminal};
+use crossterm::cursor::{MoveTo, MoveToColumn};
 use crossterm::event::{Event, KeyCode, read};
-use crossterm::style::{self, Color, SetBackgroundColor, SetForegroundColor, Stylize};
+use crossterm::style::{self, Color, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{ClearType, EnterAlternateScreen, LeaveAlternateScreen};
-use log::warn;
 
 use crate::Database;
 use crate::transaction::Transaction;
@@ -145,9 +144,10 @@ impl Window {
             delta.push((self.selected_row, self.offset + self.selected_row as usize, false));
             self.selected_row -= 1;
             delta.push((self.selected_row, self.offset + self.selected_row as usize, true));
-            return delta;
+
+            delta
         } else {
-            return self.scroll_down();
+            self.scroll_down()
         }
     }
 
