@@ -5,6 +5,7 @@ use log::{warn};
 use regex::Regex;
 use sqlparser::ast::{Expr, Value};
 use sqlparser::ast::Expr::Identifier;
+use sqlparser::ast::Value::Number;
 use crate::db::Database;
 
 pub(crate) fn handle_equals(left: Expr, right: Expr, database: &Database, transactions: &HashSet<u32>) -> HashSet<u32> {
@@ -39,6 +40,14 @@ pub(crate) fn handle_equals(left: Expr, right: Expr, database: &Database, transa
                         }
                     }
                 },
+
+                // WHERE id = 123
+                "id" => {
+                    if let Expr::Value(Number(string, _)) = right {
+                        let trans_id = string.parse::<u32>().unwrap();
+                        return vec![trans_id].into_iter().collect();
+                    }
+                }
 
                 &_ => {}
             }

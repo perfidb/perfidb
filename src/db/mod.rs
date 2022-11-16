@@ -361,6 +361,13 @@ impl Database {
         self.to_transaction(t)
     }
 
+    pub(crate) fn search_by_id(&self, id: u32) -> Option<Transaction> {
+        match self.transactions.get(&id) {
+            Some(t) => Some(self.to_transaction(t)),
+            None => None
+        }
+    }
+
     /// Save db content to disk
     pub(crate) fn save(&self) {
         let encoded: Vec<u8> = bincode::serialize(&self).unwrap();

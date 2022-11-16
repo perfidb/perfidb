@@ -119,12 +119,11 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config)
 
                     Statement::Update { assignments, selection: Some(from_clause), .. } => {
                         for assignment in assignments {
-                            if assignment.id[0].value == "tags" {
+                            if assignment.id[0].value == "label" {
                                 if let Expr::Value(Value::SingleQuotedString(tags)) = assignment.value {
                                     let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
                                     db.update_tags_for_multiple_transactions(&from_clause, &tags);
                                 }
-
                             }
                         }
                     },
@@ -134,7 +133,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config)
                         if let TableFactor::Table { name, .. } = table.relation {
                             let trans_id = name.0[0].value.parse::<u32>().unwrap();
                             for assignment in assignments {
-                                if assignment.id[0].value == "tags" {
+                                if assignment.id[0].value == "label" {
                                     update_transaction_tags(db, trans_id, assignment.value);
                                 }
                             }

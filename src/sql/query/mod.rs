@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use chrono::NaiveDateTime;
 use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
 use log::{warn};
-use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, TableFactor};
+use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, TableFactor, Value};
 use crate::{Config, Database};
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
@@ -22,7 +22,25 @@ pub(crate) fn run_query(query: Box<Query>, db: &mut Database, config: &Config) {
                 }
             }
 
-            let mut transactions :Vec<Transaction> = db.query(table_name.as_str(), select.selection);
+            let mut transactions :Vec<Transaction> = vec![];
+            let mut select_by_id = false;
+            if select.projection.len() == 1 {
+                // Handle  SELECT transaction_id FROM db
+                if let SelectItem::UnnamedExpr(Expr::Value(Value::Number(string, _))) = &select.projection[0] {
+                    select_by_id = true;
+                    let trans_id = string.parse::<u32>().unwrap();
+                    transactions = match db.search_by_id(trans_id) {
+                        Some(t) => vec![t],
+                        None => vec![]
+                    };
+                }
+            }
+
+            if !select_by_id {
+                transactions = db.query(table_name.as_str(), select.selection);
+            }
+
+            // auto_tag is an experimental feature
             if auto_tag {
                 let tagger = Tagger::new(config);
                 for t in transactions.iter_mut() {
@@ -93,7 +111,10 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
     match &projection[0] {
         // SELECT * FROM ...
-        SelectItem::Wildcard => { println!("{table}") },
+        SelectItem::Wildcard |
+        // SELECT 123 FROM ...
+        // Select by id has already been handled above
+        SelectItem::UnnamedExpr(Expr::Value(Value::Number(_, _))) => { println!("{table}") },
 
         // SELECT SUM(*) FROM
         SelectItem::UnnamedExpr(Expr::Function(func)) => {
