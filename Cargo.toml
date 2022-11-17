@@ -1,7 +1,9 @@
 [package]
-name = "transdb"
+name = "perfidb"
 version = "0.1.0"
 edition = "2021"
+authors = ["Ren Shao <ren@shao.io>"]
+description = "A SQL database to manage personal finance"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

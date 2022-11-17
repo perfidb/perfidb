@@ -27,6 +27,12 @@ SELECT * FROM db WHERE label = 'grocery';
 # How to use PerfiDB
 A common use case is to export transactions from your banks and run SQL `COPY` statement to load them into PerfiDB.
 
+### Launch
+Run `perfidb` command and specify a new database file:
+```
+perfidb myfinance.db
+```
+
 ### Import transactions
 To import transactions from a csv file into account _amex_gold_
 ```sql
