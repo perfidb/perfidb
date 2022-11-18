@@ -11,6 +11,7 @@ use sqlparser::ast::{BinaryOperator, Expr};
 use sqlparser::ast::Expr::Identifier;
 
 use crate::csv_reader::Record;
+use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
 
@@ -160,7 +161,7 @@ impl Database {
     }
 
     pub(crate) fn add_tags(&mut self, trans_id: u32, tags: &[&str]) {
-        info!("Adding tags {:?} for transaction {}", tags, trans_id);
+        info!("Adding labels {:?} for transaction {}", tags, trans_id);
 
         for tag in tags {
             if !self.tag_name_to_id.contains_key(*tag) {
@@ -182,7 +183,7 @@ impl Database {
         self.save();
     }
 
-    pub(crate) fn update_tags_for_multiple_transactions(&mut self, where_clause: &Expr, tags: &[&str]) {
+    pub(crate) fn set_labels_for_multiple_transactions(&mut self, where_clause: &Expr, labels: &[&str]) {
         let mut transactions = HashSet::<u32>::new();
         for trans_id in self.transactions.keys() {
             transactions.insert(*trans_id);
@@ -190,16 +191,16 @@ impl Database {
 
         transactions = self.filter_transactions(&transactions, where_clause);
 
-        for tag in tags {
-            if !self.tag_name_to_id.contains_key(*tag) {
-                self.tag_name_to_id.insert(tag.to_string(), self.tag_id_seed);
-                self.tag_id_to_name.insert(self.tag_id_seed, tag.to_string());
+        for label in labels {
+            if !self.tag_name_to_id.contains_key(*label) {
+                self.tag_name_to_id.insert(label.to_string(), self.tag_id_seed);
+                self.tag_id_to_name.insert(self.tag_id_seed, label.to_string());
                 self.tag_id_to_transactions.insert(self.tag_id_seed, vec![]);
                 self.tag_id_seed += 1;
 
             }
 
-            let tag_id = self.tag_name_to_id.get(*tag).unwrap();
+            let tag_id = self.tag_name_to_id.get(*label).unwrap();
             for trans_id in &transactions {
                 let transaction = self.transactions.get_mut(trans_id).unwrap();
                 if !transaction.tags.contains(tag_id) {
@@ -210,6 +211,22 @@ impl Database {
         }
 
         self.save();
+    }
+
+    pub(crate) fn auto_label(&mut self, auto_labeller: &Tagger, where_clause: &Expr) {
+        let mut transactions = HashSet::<u32>::new();
+        for trans_id in self.transactions.keys() {
+            transactions.insert(*trans_id);
+        }
+
+        transactions = self.filter_transactions(&transactions, where_clause);
+        for trans_id in &transactions {
+            let t = self.transactions.get(trans_id).unwrap();
+            let labels = auto_labeller.label(&self.to_transaction(t));
+            if labels.len() > 0 {
+                self.add_tags(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+            }
+        }
     }
 
     pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &[&str]) {
@@ -362,10 +379,7 @@ impl Database {
     }
 
     pub(crate) fn search_by_id(&self, id: u32) -> Option<Transaction> {
-        match self.transactions.get(&id) {
-            Some(t) => Some(self.to_transaction(t)),
-            None => None
-        }
+        self.transactions.get(&id).map(|t| self.to_transaction(t))
     }
 
     /// Save db content to disk

@@ -1,6 +1,3 @@
-use std::fs;
-use std::path::Path;
-
 use clap::Parser;
 use env_logger::Env;
 use log::info;
@@ -26,8 +23,8 @@ struct Cli {
     /// Database file path
     file: String,
 
-    /// Tagging rules file
-    tagging_rules_file: Option<String>,
+    /// Auto labelling rules
+    auto_label_rules_file: Option<String>,
 }
 
 static COMMAND_HISTORY_FILE: &str = ".transdb_history";
@@ -37,17 +34,6 @@ fn main() {
     let cli :Cli = Cli::parse();
 
     let mut db= Database::load(cli.file.as_str());
-
-    let config :Config = match cli.tagging_rules_file {
-        Some(config_path) => {
-            let path = Path::new(config_path.as_str());
-            let config :Config = toml::from_slice::<Config>(&fs::read(path).unwrap()).unwrap();
-            info!("Loaded config: {:?}", config);
-            config
-        },
-        None => Config::empty()
-    };
-
 
     let mut rl = Editor::<()>::new();
     if rl.load_history(COMMAND_HISTORY_FILE).is_err() {
@@ -74,7 +60,11 @@ fn main() {
                             info!("No recent query results");
                         }
                     } else {
-                        let result = parse_and_run_sql(&mut db, sql, &config);
+                        let auto_label_rules_file = match &cli.auto_label_rules_file {
+                            Some(f) => f.as_str(),
+                            None => ""
+                        };
+                        let result = parse_and_run_sql(&mut db, sql, auto_label_rules_file);
                         if let Err(err) = result {
                             println!("{}", err);
                         }

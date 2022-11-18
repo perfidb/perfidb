@@ -114,9 +114,9 @@ impl Window {
             delta.push((self.selected_row, self.offset + self.selected_row as usize, false));
             self.selected_row += 1;
             delta.push((self.selected_row, self.offset + self.selected_row as usize, true));
-            return delta;
+            delta
         } else {
-            return self.scroll_up();
+            self.scroll_up()
         }
     }
 
@@ -166,7 +166,7 @@ impl Window {
     }
 }
 
-fn repaint_window(delta: Vec<(u16, usize, bool)>, transactions: &Vec<Transaction>, selected_row: u16) {
+fn repaint_window(delta: Vec<(u16, usize, bool)>, transactions: &[Transaction], selected_row: u16) {
     for (row, trans_index, highlight) in delta {
         execute!(stdout(), MoveTo(0, row), terminal::Clear(ClearType::CurrentLine)).unwrap();
         print_transaction(&transactions[trans_index], highlight);

@@ -75,6 +75,12 @@ SELECT * FROM db WHERE date = '2022-07-31';
 ##### Labels
 ```sql
 SELECT * FROM db WHERE label = 'grocery';
+
+-- Preview auto labelling results
+SELECT auto() FROM db WHERE date = '2022-07';
+
+-- Apply auto labelling 
+UPDATE db SET label = auto() WHERE date = '2022-07';
 ```
 
 ##### Transaction ID

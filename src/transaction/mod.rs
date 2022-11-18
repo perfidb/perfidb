@@ -13,7 +13,7 @@ pub(crate) struct Transaction {
 
 impl Transaction {
     pub(crate) fn new(id: u32, account: String, date: NaiveDateTime, description: &str, amount: f32, tags: Vec<String>) -> Transaction {
-        let description = description.replace("\n", " ");
+        let description = description.replace('\n', " ");
         Transaction {
             id,
             account,

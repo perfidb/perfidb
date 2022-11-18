@@ -9,6 +9,7 @@ use sqlparser::parser::ParserError;
 use crate::{Config, csv_reader, Database};
 use crate::sql::query::run_query;
 use walkdir::WalkDir;
+use crate::tagger::Tagger;
 
 fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool, dry_run: bool) {
     let result = csv_reader::read_transactions(table_name, path, inverse_amount);
@@ -70,7 +71,7 @@ fn execute_insert(_db : &Database, _table_name :&str, values: &[Vec<Expr>]) {
     }
 }
 
-pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config) -> Result<(), ParserError> {
+pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), ParserError> {
     let dialect = GenericDialect {};
     let sql_parse_result = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str());
 
@@ -82,7 +83,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config)
             for statement in ast {
                 match statement {
                     Statement::Query(query) => {
-                        run_query(query, db, config);
+                        run_query(query, db, auto_label_rules_file);
                     },
 
                     Statement::Insert { table_name, source, .. } => {
@@ -117,12 +118,25 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, config: &Config)
                         execute_copy(db, table_name, &target, inverse_amount, dry_run);
                     },
 
-                    Statement::Update { assignments, selection: Some(from_clause), .. } => {
+                    Statement::Update { assignments, selection: Some(where_clause), .. } => {
                         for assignment in assignments {
                             if assignment.id[0].value == "label" {
-                                if let Expr::Value(Value::SingleQuotedString(tags)) = assignment.value {
-                                    let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).collect();
-                                    db.update_tags_for_multiple_transactions(&from_clause, &tags);
+                                match assignment.value {
+                                    Expr::Value(Value::SingleQuotedString(labels)) => {
+                                        let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).collect();
+                                        db.set_labels_for_multiple_transactions(&where_clause, &labels);
+                                    },
+
+                                    Expr::Function(func) => {
+                                        // SET label = auto()
+                                        if func.name.0[0].value.to_ascii_lowercase() == "auto" {
+                                            let auto_labeller = Tagger::new(&Config::load_from_file(auto_label_rules_file));
+                                            db.auto_label(&auto_labeller, &where_clause);
+                                        }
+                                    }
+                                    _ => {
+                                        warn!("\"{}\" is not a supported label value or function. Try:  SET label = 'grocery'", assignment.value);
+                                    }
                                 }
                             }
                         }

@@ -7,7 +7,7 @@ use crate::{Config, Database};
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
-pub(crate) fn run_query(query: Box<Query>, db: &mut Database, config: &Config) {
+pub(crate) fn run_query(query: Box<Query>, db: &mut Database, auto_label_config_file: &str) {
     let Query { with: _, body, .. } = *query;
     if let SetExpr::Select(select) = body {
 
@@ -15,10 +15,10 @@ pub(crate) fn run_query(query: Box<Query>, db: &mut Database, config: &Config) {
             // assume it always has at least 1 identifier
             let table_name :&String = &name.0[0].value;
 
-            let mut auto_tag = false;
+            let mut auto_labelling = false;
             if let SelectItem::UnnamedExpr(Expr::Function(func)) = &select.projection[0] {
-                if func.name.0[0].value.to_ascii_uppercase() == "TAG" {
-                    auto_tag = true;
+                if func.name.0[0].value.to_ascii_lowercase() == "auto" {
+                    auto_labelling = true;
                 }
             }
 
@@ -40,12 +40,11 @@ pub(crate) fn run_query(query: Box<Query>, db: &mut Database, config: &Config) {
                 transactions = db.query(table_name.as_str(), select.selection);
             }
 
-            // auto_tag is an experimental feature
-            if auto_tag {
-                let tagger = Tagger::new(config);
+            if auto_labelling {
+                let tagger = Tagger::new(&Config::load_from_file(auto_label_config_file));
                 for t in transactions.iter_mut() {
-                    let new_tags = tagger.tag(t);
-                    t.tags = new_tags;
+                    let new_labels = tagger.label(t);
+                    t.tags = new_labels;
                 }
             }
 
@@ -91,22 +90,26 @@ fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {
 fn handle_normal_select(transactions: &[Transaction], table: &mut Table, projection: &[SelectItem]) {
     table.set_header(vec!["ID", "Account", "Date", "Description", "Amount", "Labels"]);
 
-    let mut is_tagging = false;
+    let mut is_auto_labelling = false;
     if let SelectItem::UnnamedExpr(Expr::Function(func)) = &projection[0] {
-        if func.name.0[0].value.to_ascii_uppercase() == "TAG" {
-            is_tagging = true;
+        if func.name.0[0].value.to_ascii_uppercase() == "AUTO" {
+            is_auto_labelling = true;
         }
     }
 
     for t in transactions {
         table.add_row(vec![
-            set_cell_style(t, Cell::new(t.id.to_string().as_str()), is_tagging).set_alignment(CellAlignment::Right),
-            set_cell_style(t, Cell::new(t.account.as_str()), is_tagging),
-            set_cell_style(t, Cell::new(format_date(t.date).as_str()), is_tagging),
-            set_cell_style(t, Cell::new(t.description.as_str()), is_tagging),
-            set_cell_style(t, Cell::new(format_amount(t.amount).as_str()), is_tagging).set_alignment(CellAlignment::Right),
-            set_cell_style(t, Cell::new(t.tags_display().as_str()), is_tagging)
+            set_cell_style(t, Cell::new(t.id.to_string().as_str()), is_auto_labelling).set_alignment(CellAlignment::Right),
+            set_cell_style(t, Cell::new(t.account.as_str()), is_auto_labelling),
+            set_cell_style(t, Cell::new(format_date(t.date).as_str()), is_auto_labelling),
+            set_cell_style(t, Cell::new(t.description.as_str()), is_auto_labelling),
+            set_cell_style(t, Cell::new(format_amount(t.amount).as_str()), is_auto_labelling).set_alignment(CellAlignment::Right),
+            set_cell_style(t, Cell::new(t.tags_display().as_str()), is_auto_labelling)
         ]);
+    }
+
+    if is_auto_labelling {
+        println!("{table}");
     }
 
     match &projection[0] {
@@ -119,7 +122,6 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
         // SELECT SUM(*) FROM
         SelectItem::UnnamedExpr(Expr::Function(func)) => {
             match func.name.0[0].value.to_ascii_uppercase().as_str() {
-                "TAG" => { println!("{table}") }
                 "SUM" => {
                     table.add_row(vec!["", "", "", "", "", ""]);
                     table.add_row(vec!["", "", "", "Subtotal", transactions.iter().map(|t| t.amount).fold(0.0, |total, amount| total + amount).to_string().as_str(), ""]);
