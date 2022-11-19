@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::Path;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use toml::value::Table;
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct Config {
     pub(crate) labels: Table
 }

@@ -63,7 +63,7 @@ pub(crate) struct Database {
 }
 
 impl Database {
-    pub(crate) fn new(file_path: Option<String>) -> Database {
+    pub(crate) fn new(file_path: String) -> Database {
         Database {
             transaction_id_seed: 1,
             transactions: HashMap::new(),
@@ -73,7 +73,7 @@ impl Database {
             tag_id_seed: 1,
             tag_id_to_transactions: HashMap::new(),
             token_to_transactions: HashMap::new(),
-            file_path,
+            file_path: Some(file_path),
             last_query_results: None,
         }
     }
@@ -86,7 +86,7 @@ impl Database {
             database.file_path = Some(path_str.to_string());
             database
         } else {
-            Database::new(Some(path_str.to_string()))
+            Database::new(path_str.to_string())
         }
     }
 
