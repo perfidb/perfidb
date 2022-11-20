@@ -121,13 +121,14 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
         // SELECT SUM(*) FROM
         SelectItem::UnnamedExpr(Expr::Function(func)) => {
-            match func.name.0[0].value.to_ascii_uppercase().as_str() {
-                "SUM" => {
-                    table.add_row(vec!["", "", "", "", "", ""]);
-                    table.add_row(vec!["", "", "", "Subtotal", transactions.iter().map(|t| t.amount).fold(0.0, |total, amount| total + amount).to_string().as_str(), ""]);
-                    println!("{table}");
-                },
-                _ => {}
+            if func.name.0[0].value.to_ascii_uppercase() == "SUM" {
+                table.add_row(vec!["", "", "", "", "", ""]);
+
+                table.add_row(vec![
+                    Cell::new(""), Cell::new(""), Cell::new(""), Cell::new("Subtotal"),
+                    Cell::new(format_amount(transactions.iter().map(|t| t.amount).fold(0.0, |total, amount| total + amount))).set_alignment(CellAlignment::Right),
+                    Cell::new("")]);
+                println!("{table}");
             }
         },
         _ => {}

@@ -130,7 +130,7 @@ impl Database {
         }
     }
 
-    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &String) {
+    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &str) {
         let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
 
         let mut existing_tags = HashSet::<String>::new();
@@ -223,7 +223,7 @@ impl Database {
         for trans_id in &transactions {
             let t = self.transactions.get(trans_id).unwrap();
             let labels = auto_labeller.label(&self.to_transaction(t));
-            if labels.len() > 0 {
+            if !labels.is_empty() {
                 self.add_tags(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
             }
         }
@@ -255,20 +255,20 @@ impl Database {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
-                filter::handle_equals((*left).clone(), (*right).clone(), &self, &transactions)
+                filter::handle_equals((*left).clone(), (*right).clone(), self, transactions)
             },
 
             Expr::BinaryOp{ left, op: BinaryOperator::NotEq, right } => {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
-                filter::handle_not_equal((*left).clone(), (*right).clone(), &self, &transactions)
+                filter::handle_not_equal((*left).clone(), (*right).clone(), self, transactions)
             },
 
             // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
             Expr::BinaryOp{ left: _, op: BinaryOperator::Like, right} => {
                 let right: &Expr = right;
-                filter::handle_like((*right).clone(), &transactions, &self)
+                filter::handle_like((*right).clone(), transactions, self)
             },
 
             // label IS NULL
@@ -286,7 +286,7 @@ impl Database {
             // label IS NOT NULL
             Expr::IsNotNull(expr) => {
                 // Had to unbox here. Rust 1.63
-                let expr :&Expr = &(*expr);
+                let expr :&Expr = expr;
                 if let Identifier(ident) = expr {
                     if ident.value == "label" {
                         return transactions.iter().filter(|id| self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
@@ -385,7 +385,7 @@ impl Database {
     /// Save db content to disk
     pub(crate) fn save(&self) {
         let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
-        fs::write((&self.file_path).as_ref().unwrap(), encoded).expect("Unable to write to database file");
+        fs::write(self.file_path.as_ref().unwrap(), encoded).expect("Unable to write to database file");
     }
 
     fn to_transaction(&self, t: &TransactionRecord) -> Transaction {

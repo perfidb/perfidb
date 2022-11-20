@@ -1,8 +1,8 @@
 use std::{fs, process};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use clap::Parser;
 use env_logger::Env;
-use log::{error, info};
+use log::{debug, error, info};
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
 use toml::Value;
@@ -34,7 +34,7 @@ struct Cli {
     auto_label_rules_file: Option<String>,
 }
 
-static COMMAND_HISTORY_FILE: &str = ".transdb_history";
+static COMMAND_HISTORY_FILE: &str = ".perfidb_history";
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
@@ -49,10 +49,13 @@ fn main() {
         }
     };
 
-    let mut rl = Editor::<()>::new();
-    if rl.load_history(COMMAND_HISTORY_FILE).is_err() {
-        println!("No previous history.");
+    let mut rl = Editor::<()>::new().expect("Unable to create terminal editor");
+
+    let command_history_file: PathBuf = perfidb_home_path().join(COMMAND_HISTORY_FILE);
+    if rl.load_history(command_history_file.as_path()).is_err() {
+        debug!("No previous command history found.");
     }
+
     let mut sql_buffer :Vec<String> = vec![];
     loop {
         let readline = rl.readline("# ");
@@ -97,7 +100,12 @@ fn main() {
             }
         }
     }
-    rl.save_history(COMMAND_HISTORY_FILE).unwrap();
+    rl.save_history(command_history_file.as_path()).unwrap();
+}
+
+fn perfidb_home_path() -> PathBuf {
+    let user_home = dirs::home_dir().expect("Unable to locate user HOME dir");
+    user_home.join(".perfidb")
 }
 
 fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
@@ -105,8 +113,7 @@ fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
         info!("Loading database from {}", file_from_cli);
         Database::load(file_from_cli)
     } else {
-        let mut perfidb_home_dir = dirs::home_dir().unwrap();
-        perfidb_home_dir.push(".perfidb");
+        let perfidb_home_dir = perfidb_home_path();
         if perfidb_home_dir.exists() && perfidb_home_dir.is_file() {
             error!("{} already exists and is not a directory. Please remove this file and re-run perfidb", perfidb_home_dir.display());
             process::exit(1);
@@ -128,7 +135,7 @@ fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
     }
 }
 
-fn create_auto_label_rules_example(perfidb_home_dir: &PathBuf) {
+fn create_auto_label_rules_example(perfidb_home_dir: &Path) {
     let mut config = Config::empty();
     config.labels.insert("grocery".to_string(), Value::Array(vec![Value::String("woolworths".to_string()), Value::String("coles".to_string())]));
     config.labels.insert("transfer".to_string(), Value::Array(vec![Value::String("^DIRECT DEBIT RECEIVED - THANK YOU".to_string())]));

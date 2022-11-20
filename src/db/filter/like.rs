@@ -8,9 +8,9 @@ pub(crate) fn handle_like(right: Expr, transactions: &HashSet<u32>, database: &D
 
     // handle both with and without single quoted.
     if let Expr::Value(Value::SingleQuotedString(string)) = right {
-        keyword = string.clone();
+        keyword = string;
     } else if let Expr::Identifier(ident) = right {
-        keyword = ident.value.clone();
+        keyword = ident.value;
     } else {
         return HashSet::new();
     }

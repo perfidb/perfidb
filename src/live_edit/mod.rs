@@ -91,7 +91,7 @@ struct Window {
 
 impl Window {
     fn selected_transaction_index(&self) -> usize {
-        return self.offset + self.selected_row as usize;
+        self.offset + self.selected_row as usize
     }
 
     fn repaint(&mut self) -> Vec<(u16, usize, bool)> {
