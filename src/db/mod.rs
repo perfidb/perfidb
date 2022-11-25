@@ -2,6 +2,8 @@ mod filter;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::io::{Read, Seek, SeekFrom, Write};
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::path::Path;
 
 use chrono::{NaiveDate, NaiveDateTime};
@@ -9,11 +11,14 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr};
 use sqlparser::ast::Expr::Identifier;
+use crate::common::{ResultError};
 
 use crate::csv_reader::Record;
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
+/// perfidb binary version
+const PERFIDB_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,6 +37,13 @@ impl TransactionRecord {
     pub(crate) fn has_tags(&self) -> bool {
         !self.tags.is_empty()
     }
+}
+
+/// Metadata of database file. Contains the version of perfidb that was used to write the database to disk.
+/// Will be used by future version of perfidb to upgrade database file written by older version of binary.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct Metadata {
+    version: String
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -78,18 +90,51 @@ impl Database {
         }
     }
 
-    pub(crate) fn load(path_str: &str) -> Database {
+    pub(crate) fn load(path_str: &str) -> ResultError<Database> {
         let path = Path::new(path_str);
         if path.exists() {
-            let mut database :Database = bincode::deserialize(&fs::read(path).unwrap()).unwrap();
-            // let mut database :Database = serde_json::from_str(fs::read_to_string(path).unwrap().as_str()).unwrap();
+            let mut file = fs::File::open(path)?;
+            let metadata_len = file.read_u16::<LittleEndian>()?;
+            let mut buffer = vec![0; metadata_len as usize];
+            file.read_exact(&mut buffer)?;
+            let metadata: Metadata = bincode::deserialize(&buffer)?;
+            info!("Database version {}", metadata.version);
+
+            file.seek(SeekFrom::Start(1024))?;
+            let mut buffer: Vec<u8> = vec![];
+            file.read_to_end(&mut buffer)?;
+
+            let mut database :Database = bincode::deserialize(&buffer)?;
             database.file_path = Some(path_str.to_string());
-            database
+            Ok(database)
         } else {
-            Database::new(path_str.to_string())
+            Ok(Database::new(path_str.to_string()))
         }
     }
 
+    /// Save db content to disk
+    pub(crate) fn save(&self) {
+        // Create metadata using current binary version
+        let metadata = Metadata { version: PERFIDB_VERSION.to_string() };
+        let metadata_encoded: Vec<u8> = bincode::serialize(&metadata).unwrap();
+        let metadata_length = metadata_encoded.len();
+        assert!(metadata_length <= (u16::MAX - 2) as usize);
+
+        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+
+        // Use first 1024 bytes to store metadata
+        let mut file = fs::File::create(self.file_path.as_ref().unwrap()).unwrap();
+        // Using first 2 bytes to write metadata length
+        file.write_u16::<LittleEndian>(metadata_length as u16).unwrap();
+        // Write metadata
+        file.write_all(&metadata_encoded).unwrap();
+        let remaining_header_bytes = 1024 - 2 - metadata_length;
+        // Write 0s for remaining bytes to fill up the first 1024 bytes.
+        file.write_all(&vec![0; remaining_header_bytes]).unwrap();
+
+        file.write_all(&encoded).expect("Unable to write to database file");
+        file.flush().unwrap();
+    }
 
     pub(crate) fn upsert(&mut self, t: &Record) {
         let trans_id = self.transaction_id_seed;
@@ -380,12 +425,6 @@ impl Database {
 
     pub(crate) fn search_by_id(&self, id: u32) -> Option<Transaction> {
         self.transactions.get(&id).map(|t| self.to_transaction(t))
-    }
-
-    /// Save db content to disk
-    pub(crate) fn save(&self) {
-        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
-        fs::write(self.file_path.as_ref().unwrap(), encoded).expect("Unable to write to database file");
     }
 
     fn to_transaction(&self, t: &TransactionRecord) -> Transaction {

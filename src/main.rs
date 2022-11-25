@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::db::Database;
 use crate::sql::parse_and_run_sql;
 
+mod common;
 mod db;
 mod csv_reader;
 mod transaction;
@@ -111,7 +112,7 @@ fn perfidb_home_path() -> PathBuf {
 fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
     if let Some(file_from_cli) = file_from_cli {
         info!("Loading database from {}", file_from_cli);
-        Database::load(file_from_cli)
+        Database::load(file_from_cli).unwrap()
     } else {
         let perfidb_home_dir = perfidb_home_path();
         if perfidb_home_dir.exists() && perfidb_home_dir.is_file() {
@@ -131,7 +132,7 @@ fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
             db.save();
         }
 
-        Database::load(db_file.as_path().to_str().unwrap())
+        Database::load(db_file.as_path().to_str().unwrap()).unwrap()
     }
 }
 
