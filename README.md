@@ -90,3 +90,14 @@ SELECT * FROM db WHERE id = 1234;
 -- or simply
 SELECT 1234 FROM db
 ```
+
+## Live mode
+Sometimes you might want to label transactions directly as if operating a spreadsheet, without using SQL. The **live** mode allows you to do exactly that. To switch to live mode, type command `live`, without semicolon.
+
+The live mode loads transactions of your very last `SELECT` query. Use `j` and `k` to move up and down. To edit label of the highlighed transaction, press `l` and start typing labels. If you want to apply multiple labels use comma as a separator. Press `Enter` once finished editing.
+
+As you start typing the new label, not all characters from the old label are overridden, that is fine, new labels will be applied to the transaction.
+
+Once new labels are applied to a transaction all existing labels of that transaction will be removed. At the moment PerfiDB does not support partial editing in live mode.
+
+To get out of live mode, press `q`.

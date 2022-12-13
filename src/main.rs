@@ -63,6 +63,23 @@ fn main() {
         match readline {
             Ok(line) => {
                 let line = line.trim();
+
+                // Check if line is a control command
+                if sql_buffer.is_empty() {
+                    match line.to_ascii_lowercase().as_str() {
+                        "exit" => break,
+                        "live" => {
+                            if let Some(last_results) = &db.last_query_results {
+                                live_edit::live_label(last_results.clone(), &mut db).unwrap();
+                            } else {
+                                info!("No recent query results");
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+
                 let is_last = line.ends_with(';');
                 if !line.is_empty() {
                     sql_buffer.push(line.to_string());
@@ -71,17 +88,9 @@ fn main() {
                     let sql = sql_buffer.join("\n");
                     rl.add_history_entry(sql.trim());
 
-                    if sql == "active;" {
-                        if let Some(last_results) = &db.last_query_results {
-                            live_edit::live_label(last_results.clone(), &mut db).unwrap();
-                        } else {
-                            info!("No recent query results");
-                        }
-                    } else {
-                        let result = parse_and_run_sql(&mut db, sql, auto_label_rules_file.as_str());
-                        if let Err(err) = result {
-                            println!("{}", err);
-                        }
+                    let result = parse_and_run_sql(&mut db, sql, auto_label_rules_file.as_str());
+                    if let Err(err) = result {
+                        println!("{}", err);
                     }
 
                     sql_buffer.clear();
