@@ -46,6 +46,8 @@ To print out records from csv file without actually saving to database, specify 
 COPY amex_gold FROM 'bank-exports/2022-03.csv' WITH (FORMAT dryrun)
 ```
 
+If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
+
 ### Query
 
 #### From all accounts
@@ -101,3 +103,14 @@ As you start typing the new label, not all characters from the old label are ove
 Once new labels are applied to a transaction all existing labels of that transaction will be removed. At the moment PerfiDB does not support partial editing in live mode.
 
 To get out of live mode, press `q`.
+
+## How are CSV files parsed
+
+PerfiDB first tries to detect if the first line in CSV is the header. It checks the presence of some common patterns, e.g. date, description, amount, etc. 
+
+If header line is detected, it will also try to detect those columns and then parse each row in CSV using the detected column.
+
+It also tries to parse the transaction date with a few common date formats.
+
+If no header line is detected in CSV it assumes the column in following order: date, amount, description.
+
