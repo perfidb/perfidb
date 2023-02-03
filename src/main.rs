@@ -8,6 +8,7 @@ use rustyline::error::ReadlineError;
 use toml::Value;
 
 extern crate dirs;
+extern crate core;
 
 use crate::config::Config;
 use crate::db::Database;

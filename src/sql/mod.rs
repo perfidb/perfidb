@@ -1,4 +1,5 @@
 mod query;
+mod insert;
 
 use std::path::Path;
 use comfy_table::{Table, TableComponent};
@@ -64,13 +65,6 @@ fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inver
     }
 }
 
-fn execute_insert(_db : &Database, _table_name :&str, values: &[Vec<Expr>]) {
-    for _v in values {
-        // TODO: implement single INSERT
-        println!("INSERT statement is not implemented yet");
-    }
-}
-
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), ParserError> {
     let dialect = GenericDialect {};
     let sql_parse_result = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str());
@@ -87,14 +81,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                     },
 
                     Statement::Insert { table_name, source, .. } => {
-                        println!("{:?}", table_name);
-
-                        // Grab index 0 for now. TODO: make it nicer
-                        let table_name :&str = table_name.0[0].value.as_str();
-
-                        if let SetExpr::Values(values) = source.body {
-                            execute_insert(db, table_name, &values.0);
-                        }
+                        insert::execute_insert(db, table_name, source);
                     },
 
                     Statement::Copy { table_name, target, options, .. } => {
