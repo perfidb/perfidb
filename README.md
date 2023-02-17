@@ -93,6 +93,13 @@ SELECT * FROM db WHERE id = 1234;
 SELECT 1234 FROM db
 ```
 
+### INSERT
+```sql
+INSERT INTO amex VALUES
+  ('2023-02-21', 'food', -45.0),
+  ('2023-02-23', 'salary', 500)
+```
+
 ## Live mode
 Sometimes you might want to label transactions directly as if operating a spreadsheet, without using SQL. The **live** mode allows you to do exactly that. To switch to live mode, type command `live`, without semicolon.
 
