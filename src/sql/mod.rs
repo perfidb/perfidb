@@ -1,10 +1,11 @@
 mod query;
 mod insert;
+mod util;
 
 use std::path::Path;
 use comfy_table::{Table, TableComponent};
 use log::{info, warn};
-use sqlparser::ast::{CopyOption, CopyTarget, Expr, SetExpr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
+use sqlparser::ast::{CopyOption, CopyTarget, Expr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{Config, csv_reader, Database};
