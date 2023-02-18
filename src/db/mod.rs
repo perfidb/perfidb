@@ -20,6 +20,8 @@ use crate::transaction::Transaction;
 /// perfidb binary version
 const PERFIDB_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const ALL_ACCOUNTS: &str = "db";
+
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
 struct TransactionRecord {
@@ -393,7 +395,7 @@ impl Database {
 
     /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
     pub(crate) fn query(&mut self, account: &str, where_clause: Option<Expr>) -> Vec<Transaction> {
-        let mut transactions = if account == "db" {
+        let mut transactions = if account.to_ascii_lowercase() == ALL_ACCOUNTS {
             self.transactions.keys().cloned().collect::<HashSet<u32>>()
         } else {
             self.transactions.values().filter(|t| account == t.account).map(|t| t.id).collect::<HashSet<u32>>()

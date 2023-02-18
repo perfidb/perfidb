@@ -48,6 +48,17 @@ COPY amex_gold FROM 'bank-exports/2022-03.csv' WITH (FORMAT dryrun)
 
 If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
 
+### Export transactions
+To export all transactions to a CSV file
+```sql
+COPY db TO '/home/ren/all_trans.csv'
+```
+
+To export transactions from a specific account to a CSV file
+```sql
+COPY amex TO './amex.csv'
+```
+
 ### Query
 
 #### From all accounts

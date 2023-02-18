@@ -11,7 +11,6 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{Config, csv_reader, Database};
 use crate::sql::query::run_query;
-use walkdir::WalkDir;
 use crate::tagger::Tagger;
 
 fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool, dry_run: bool) {

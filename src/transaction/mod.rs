@@ -1,13 +1,15 @@
 use chrono::NaiveDateTime;
+use serde::Serializer;
 
 /// Hold transaction info returned from database query
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub(crate) struct Transaction {
     pub(crate) id: u32,
     pub(crate) account: String,
     pub(crate) date: NaiveDateTime,
     pub(crate) description: String,
     pub(crate) amount: f32,
+    #[serde(serialize_with = "serialise_tags")]
     pub(crate) tags: Vec<String>,
 }
 
@@ -27,4 +29,10 @@ impl Transaction {
     pub(crate) fn tags_display(&self) -> String {
         self.tags.join(", ")
     }
+}
+
+/// Join all tags by a bar |
+fn serialise_tags<S>(tags: &[String], serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+    serializer.collect_str(tags.join("|").as_str())
 }
