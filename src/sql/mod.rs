@@ -1,11 +1,12 @@
 mod query;
 mod insert;
 mod util;
+mod copy;
 
 use std::path::Path;
 use comfy_table::{Table, TableComponent};
 use log::{info, warn};
-use sqlparser::ast::{CopyOption, CopyTarget, Expr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
+use sqlparser::ast::{Expr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{Config, csv_reader, Database};
@@ -43,29 +44,6 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
 
 }
 
-fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inverse_amount: bool, dry_run: bool) {
-    match target {
-        CopyTarget::File { filename} => {
-            let path = Path::new(filename);
-            if path.is_dir() {
-                for entry in WalkDir::new(path).into_iter() {
-                    let dir_entry = entry.unwrap();
-                    if dir_entry.path().is_file() && !dir_entry.file_name().to_str().unwrap().starts_with('.') {
-                        println!("Copying from {}", dir_entry.path().display());
-                        copy_from_csv(dir_entry.path(), db, table_name, inverse_amount, dry_run);
-                    }
-                }
-            } else if path.is_file() {
-                println!("Copying from {}", path.display());
-                copy_from_csv(path, db, table_name, inverse_amount, dry_run);
-            }
-        },
-        _ => {
-            println!("{target:?}");
-        }
-    }
-}
-
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), ParserError> {
     let dialect = GenericDialect {};
     let sql_parse_result = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str());
@@ -85,25 +63,16 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                         insert::execute_insert(db, table_name, source);
                     },
 
-                    Statement::Copy { table_name, target, options, .. } => {
-                        // Grab index 0 for now. TODO: make it nicer
+                    Statement::Copy { table_name, to, target, options, .. } => {
+                        // // Grab index 0 for now. TODO: make it nicer
                         let table_name :&str = table_name.0[0].value.as_str();
 
-                        // should we inverse amount value
-                        let mut inverse_amount = false;
-                        let mut dry_run = false;
-                        for option in options {
-                            if let CopyOption::Format(ident) = option {
-                                let format_value = ident.value.to_lowercase();
-                                if format_value == "i" || format_value == "inverse" {
-                                    inverse_amount = true;
-                                } else if format_value == "dryrun" {
-                                    dry_run = true;
-                                }
-                            }
+                        let is_export = to;
+                        if is_export {
+                            copy::execute_export(db, table_name, &target);
+                        } else {
+                            copy::execute_import(db, table_name, &target, &options);
                         }
-
-                        execute_copy(db, table_name, &target, inverse_amount, dry_run);
                     },
 
                     Statement::Update { assignments, selection: Some(where_clause), .. } => {
