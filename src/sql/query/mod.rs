@@ -156,7 +156,7 @@ fn group_by_tags(transactions: &[Transaction], table: &mut Table) {
 
 /// Format $ amount
 fn format_amount(amount: f32) -> String {
-    format!("{:.2}", amount)
+    format!("{amount:.2}")
 }
 
 fn format_date(date: NaiveDateTime) -> String {

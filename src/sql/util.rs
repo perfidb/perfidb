@@ -9,7 +9,7 @@ pub(crate) fn expr_to_s(expr: &Expr) -> Result<String, Error> {
         Expr::Value(Value::SingleQuotedString(s)) => { Ok(s) },
         Expr::Value(Value::DoubleQuotedString(s)) => { Ok(s) },
         _ => {
-            Err(Error::new(format!("Unable to parse {:?}", expr)))
+            Err(Error::new(format!("Unable to parse {expr:?}")))
         }
     }
 }
@@ -35,16 +35,10 @@ pub(crate) fn expr_to_float(expr: &Expr) -> Result<f32, Error> {
                 _ => {}
             }
 
-            // if let UnaryOperator::Minus = op {
-            //     if let Expr::Value(Value::Number(s, _)) = *expr {
-            //         return ok(-s.parse::<f32>().unwrap());
-            //     }
-            // }
-
-            return Err(Error::new(format!("Cannot parse: {}", expr)));
+            return Err(Error::new(format!("Cannot parse: {expr}")));
         },
         _ => {
-            Err(Error::new(format!("Unrecognised float expression {:?}", expr)))
+            Err(Error::new(format!("Unrecognised float expression {expr:?}")))
         }
     }
 }

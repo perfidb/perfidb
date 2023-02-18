@@ -45,6 +45,6 @@ pub(crate) fn execute_insert(db : &mut Database, table: ObjectName, source: Box<
     }
 }
 
-fn format_row(row: &Vec<Expr>) -> String {
+fn format_row(row: &[Expr]) -> String {
     format!("({})", row.iter().map(|expr| expr.to_string()).collect::<Vec<String>>().join(", "))
 }

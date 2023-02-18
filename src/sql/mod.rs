@@ -37,7 +37,7 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
             }
         },
         Err(e) => {
-            println!("{}", e);
+            println!("{e}");
         }
     }
 
@@ -61,7 +61,7 @@ fn execute_copy(db : &mut Database, table_name :&str, target: &CopyTarget, inver
             }
         },
         _ => {
-            println!("{:?}", target);
+            println!("{target:?}");
         }
     }
 }
@@ -142,7 +142,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                         }
                     },
                     _ => {
-                        println!("Unsupported statement {:?}", statement);
+                        println!("Unsupported statement {statement:?}");
                     }
                 }
             }

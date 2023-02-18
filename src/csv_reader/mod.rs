@@ -189,17 +189,17 @@ fn parse_date(s :&str) -> NaiveDateTime {
 
 fn parse_amount(row: &StringRecord, header_index: &CsvHeaderIndex) -> f32 {
     if header_index.credit_amount.is_none() {
-        let amount_str = row.get(header_index.amount).unwrap().replace('$', "").replace(',', "");
+        let amount_str = row.get(header_index.amount).unwrap().replace(['$', ','], "");
         return amount_str.trim().parse::<f32>().unwrap();
     }
 
     // if we get here it means there is a 'credit amount' column.
 
     // first check if debit amount is empty
-    let amount_str = row.get(header_index.amount).unwrap().replace('$', "").replace(',', "");
+    let amount_str = row.get(header_index.amount).unwrap().replace(['$', ','], "");
     if !amount_str.is_empty() {
         -amount_str.parse::<f32>().unwrap()
     } else {
-        row.get(header_index.credit_amount.unwrap()).unwrap().replace('$', "").replace(',', "").parse::<f32>().unwrap()
+        row.get(header_index.credit_amount.unwrap()).unwrap().replace(['$', ','], "").parse::<f32>().unwrap()
     }
 }
