@@ -1,4 +1,5 @@
 mod filter;
+mod search;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -24,7 +25,7 @@ const ALL_ACCOUNTS: &str = "db";
 
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
-struct TransactionRecord {
+pub(crate) struct TransactionRecord {
     id: u32,
     account: String,
     date: NaiveDateTime,
