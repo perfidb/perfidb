@@ -88,51 +88,63 @@ fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {
 }
 
 fn handle_normal_select(transactions: &[Transaction], table: &mut Table, projection: &[SelectItem]) {
-    table.set_header(vec!["ID", "Account", "Date", "Description", "Amount", "Labels"]);
-
+    let mut is_normal_select = false;
+    let mut is_sum = false;
+    let mut is_count = false;
+    // Is auto labelling transactions
     let mut is_auto_labelling = false;
-    if let SelectItem::UnnamedExpr(Expr::Function(func)) = &projection[0] {
-        if func.name.0[0].value.to_ascii_uppercase() == "AUTO" {
-            is_auto_labelling = true;
-        }
-    }
-
-    for t in transactions {
-        table.add_row(vec![
-            set_cell_style(t, Cell::new(t.id.to_string().as_str()), is_auto_labelling).set_alignment(CellAlignment::Right),
-            set_cell_style(t, Cell::new(t.account.as_str()), is_auto_labelling),
-            set_cell_style(t, Cell::new(format_date(t.date).as_str()), is_auto_labelling),
-            set_cell_style(t, Cell::new(t.description.as_str()), is_auto_labelling),
-            set_cell_style(t, Cell::new(format_amount(t.amount).as_str()), is_auto_labelling).set_alignment(CellAlignment::Right),
-            set_cell_style(t, Cell::new(t.tags_display().as_str()), is_auto_labelling)
-        ]);
-    }
-
-    if is_auto_labelling {
-        println!("{table}");
-    }
 
     match &projection[0] {
         // SELECT * FROM ...
         SelectItem::Wildcard(_) |
         // SELECT 123 FROM ...
         // Select by id has already been handled above
-        SelectItem::UnnamedExpr(Expr::Value(Value::Number(_, _))) => { println!("{table}") },
+        SelectItem::UnnamedExpr(Expr::Value(Value::Number(_, _))) => is_normal_select = true,
 
         // SELECT SUM(*) FROM
+        // SELECT COUNT(*) FROM
         SelectItem::UnnamedExpr(Expr::Function(func)) => {
-            if func.name.0[0].value.to_ascii_uppercase() == "SUM" {
-                table.add_row(vec!["", "", "", "", "", ""]);
-
-                table.add_row(vec![
-                    Cell::new(""), Cell::new(""), Cell::new(""), Cell::new("Subtotal"),
-                    Cell::new(format_amount(transactions.iter().map(|t| t.amount).fold(0.0, |total, amount| total + amount))).set_alignment(CellAlignment::Right),
-                    Cell::new("")]);
-                println!("{table}");
+            is_normal_select = false;
+            let func_name: String = func.name.0[0].value.to_ascii_uppercase();
+            match func_name.as_str() {
+                "SUM" => is_sum = true,
+                "COUNT" => is_count = true,
+                "AUTO" => {
+                    is_normal_select = true;
+                    is_auto_labelling = true;
+                },
+                _ => ()
             }
         },
-        _ => {}
+        _ => ()
     }
+
+
+    if is_normal_select {
+        table.set_header(vec!["ID", "Account", "Date", "Description", "Amount", "Labels"]);
+
+        for t in transactions {
+            table.add_row(vec![
+                set_cell_style(t, Cell::new(t.id.to_string().as_str()), is_auto_labelling).set_alignment(CellAlignment::Right),
+                set_cell_style(t, Cell::new(t.account.as_str()), is_auto_labelling),
+                set_cell_style(t, Cell::new(format_date(t.date).as_str()), is_auto_labelling),
+                set_cell_style(t, Cell::new(t.description.as_str()), is_auto_labelling),
+                set_cell_style(t, Cell::new(format_amount(t.amount).as_str()), is_auto_labelling).set_alignment(CellAlignment::Right),
+                set_cell_style(t, Cell::new(t.tags_display().as_str()), is_auto_labelling)
+            ]);
+        }
+    } else if is_sum {
+        table.set_header(vec!["Subtotal"]);
+
+        table.add_row(vec![Cell::new(format_amount(
+            transactions.iter().map(|t| t.amount).fold(0.0, |total, amount| total + amount))
+        ).set_alignment(CellAlignment::Right)]);
+    } else if is_count {
+        table.set_header(vec!["Count"]);
+        table.add_row(vec![Cell::new(transactions.len()).set_alignment(CellAlignment::Right)]);
+    }
+
+    println!("{table}");
 }
 
 /// handles 'GROUP BY tags'
