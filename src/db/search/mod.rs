@@ -23,10 +23,6 @@ impl SearchIndex {
     pub(crate) fn index(&mut self, t: &TransactionRecord) {
         for token in t.description.split_whitespace() {
             let token_hash: u32 = self.token_minhash.put(token);
-
-            println!("{token} {token_hash}");
-
-
             let posting: &mut RoaringBitmap = self.posting_list.entry(token_hash).or_insert_with(RoaringBitmap::new);
             posting.insert(t.id);
         }

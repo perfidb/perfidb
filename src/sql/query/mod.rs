@@ -9,7 +9,7 @@ use crate::transaction::Transaction;
 
 pub(crate) fn run_query(query: Box<Query>, db: &mut Database, auto_label_config_file: &str) {
     let Query { with: _, body, .. } = *query;
-    if let SetExpr::Select(select) = body {
+    if let SetExpr::Select(select) = *body {
 
         if let TableFactor::Table { name, .. } = &select.from[0].relation {
             // assume it always has at least 1 identifier
@@ -114,7 +114,7 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
     match &projection[0] {
         // SELECT * FROM ...
-        SelectItem::Wildcard |
+        SelectItem::Wildcard(_) |
         // SELECT 123 FROM ...
         // Select by id has already been handled above
         SelectItem::UnnamedExpr(Expr::Value(Value::Number(_, _))) => { println!("{table}") },

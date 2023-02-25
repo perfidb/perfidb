@@ -306,7 +306,7 @@ impl Database {
                 filter::handle_equals((*left).clone(), (*right).clone(), self, transactions)
             },
 
-            Expr::BinaryOp{ left, op: BinaryOperator::NotEq, right } => {
+            Expr::BinaryOp { left, op: BinaryOperator::NotEq, right } => {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
@@ -314,9 +314,8 @@ impl Database {
             },
 
             // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
-            Expr::BinaryOp{ left: _, op: BinaryOperator::Like, right} => {
-                let right: &Expr = right;
-                filter::handle_like((*right).clone(), transactions, self)
+            Expr::Like { negated, expr, pattern, escape_char} => {
+                filter::handle_like(pattern.clone(), transactions, self)
             },
 
             // label IS NULL

@@ -4,13 +4,13 @@ use crate::db::Database;
 use crate::db::search::SearchIndex;
 
 /// Handles SQL LIKE where clause
-pub(crate) fn handle_like(right: Expr, transactions: &HashSet<u32>, database: &Database) -> HashSet<u32> {
+pub(crate) fn handle_like(expr: Box<Expr>, transactions: &HashSet<u32>, database: &Database) -> HashSet<u32> {
     let keyword: String;
 
     // handle both with and without single quoted.
-    if let Expr::Value(Value::SingleQuotedString(string)) = right {
+    if let Expr::Value(Value::SingleQuotedString(string)) = *expr {
         keyword = string;
-    } else if let Expr::Identifier(ident) = right {
+    } else if let Expr::Identifier(ident) = *expr {
         keyword = ident.value;
     } else {
         return HashSet::new();
