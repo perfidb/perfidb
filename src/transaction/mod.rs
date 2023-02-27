@@ -4,12 +4,14 @@ use serde::Serializer;
 /// Hold transaction info returned from database query
 #[derive(Debug, Clone, serde::Serialize)]
 pub(crate) struct Transaction {
+    #[serde(alias = "_perfidb_transaction_id", rename(serialize = "_perfidb_transaction_id"))]
     pub(crate) id: u32,
+    #[serde(alias = "_perfidb_account", rename(serialize = "_perfidb_account"))]
     pub(crate) account: String,
     pub(crate) date: NaiveDateTime,
     pub(crate) description: String,
     pub(crate) amount: f32,
-    #[serde(serialize_with = "serialise_tags")]
+    #[serde(serialize_with = "serialise_tags", rename(serialize = "_perfidb_label"))]
     pub(crate) tags: Vec<String>,
 }
 

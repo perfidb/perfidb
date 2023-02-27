@@ -27,10 +27,12 @@ pub(crate) fn execute_insert(db : &mut Database, table: ObjectName, source: Box<
                 }
 
                 let new_record = Record {
+                    id: None,
                     account: account_name.clone(),
                     date: date.unwrap().and_hms(0, 0, 0),
                     description: expr_to_s(&row[1]).unwrap(),
-                    amount: expr_to_float(&row[2]).unwrap()
+                    amount: expr_to_float(&row[2]).unwrap(),
+                    labels: None,
                 };
 
                 db.upsert(&new_record);

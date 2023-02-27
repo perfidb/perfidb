@@ -3,45 +3,13 @@ mod insert;
 mod util;
 mod copy;
 
-use std::path::Path;
-use comfy_table::{Table, TableComponent};
 use log::{info, warn};
 use sqlparser::ast::{Expr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
-use crate::{Config, csv_reader, Database};
+use crate::{Config, Database};
 use crate::sql::query::run_query;
 use crate::tagger::Tagger;
-
-fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool, dry_run: bool) {
-    let result = csv_reader::read_transactions(table_name, path, inverse_amount);
-    match result {
-        Ok(records) => {
-            if dry_run {
-                let mut table = Table::new();
-                table.set_header(vec!["Account", "Date", "Description", "Amount"]);
-                table.remove_style(TableComponent::HorizontalLines);
-                table.remove_style(TableComponent::MiddleIntersections);
-                table.remove_style(TableComponent::LeftBorderIntersections);
-                table.remove_style(TableComponent::RightBorderIntersections);
-                for r in &records {
-                    table.add_row(vec![r.account.as_str(), r.date.to_string().as_str(), r.description.as_str(), format!("{:.2}", r.amount).as_str()]);
-                }
-                println!("{table}");
-            } else {
-                for r in &records {
-                    db.upsert(r);
-                }
-                db.save();
-                println!("Imported {} transactions", &records.len());
-            }
-        },
-        Err(e) => {
-            println!("{e}");
-        }
-    }
-
-}
 
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), ParserError> {
     let dialect = GenericDialect {};
@@ -121,9 +89,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
 }
 
 pub(crate) fn update_transaction_tags(db: &mut Database, trans_id: u32, tag_value_expr: Expr) {
-    if let Expr::Value(Value::SingleQuotedString(tags)) = tag_value_expr {
-        // let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
-        db.update_tags(trans_id, &tags);
+    if let Expr::Value(Value::SingleQuotedString(labels)) = tag_value_expr {
+        db.update_labels(trans_id, &labels);
         return;
     }
 

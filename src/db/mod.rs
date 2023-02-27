@@ -140,10 +140,19 @@ impl Database {
     }
 
     pub(crate) fn upsert(&mut self, t: &Record) {
-        let trans_id = self.transaction_id_seed;
+        let trans_id = match t.id {
+            Some(id) => id,
+            None => self.transaction_id_seed
+        };
 
-        // increment seed
-        self.transaction_id_seed += 1;
+        if trans_id > self.transaction_id_seed {
+            self.transaction_id_seed = trans_id + 1;
+        }
+
+        let labels = match &t.labels {
+            Some(l) => l.clone(),
+            None => vec![]
+        }.iter().map(|l| self.put_label(l)).collect();
 
         let t = TransactionRecord {
             id: trans_id,
@@ -151,7 +160,7 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
-            tags: vec![],
+            tags: labels,
         };
 
         let date: NaiveDate = t.date.date();
@@ -178,24 +187,24 @@ impl Database {
         }
     }
 
-    pub(crate) fn update_tags(&mut self, trans_id: u32, tags: &str) {
-        let tags: Vec<&str> = tags.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
+    pub(crate) fn update_labels(&mut self, trans_id: u32, labels: &str) {
+        let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
 
-        let mut existing_tags = HashSet::<String>::new();
+        let mut existing_labels = HashSet::<String>::new();
         for tag_id in self.transactions.get(&trans_id).unwrap().tags.iter() {
-            existing_tags.insert(self.tag_id_to_name.get(tag_id).unwrap().clone());
+            existing_labels.insert(self.tag_id_to_name.get(tag_id).unwrap().clone());
         }
 
         let mut tags_to_remove :Vec<&str> = vec![];
         let mut tags_to_add :Vec<&str> = vec![];
-        for existing_tag in existing_tags.iter() {
-            if !tags.contains(&existing_tag.as_str()) {
-                tags_to_remove.push(existing_tag);
+        for existing_label in existing_labels.iter() {
+            if !labels.contains(&existing_label.as_str()) {
+                tags_to_remove.push(existing_label);
             }
         }
-        for new_tag in tags {
-            if !existing_tags.contains(new_tag) {
-                tags_to_add.push(new_tag);
+        for new_label in labels {
+            if !existing_labels.contains(new_label) {
+                tags_to_add.push(new_label);
             }
         }
 
@@ -204,27 +213,21 @@ impl Database {
         }
 
         if !tags_to_add.is_empty() {
-            self.add_tags(trans_id, &tags_to_add);
+            self.add_labels(trans_id, &tags_to_add);
         }
     }
 
-    pub(crate) fn add_tags(&mut self, trans_id: u32, tags: &[&str]) {
-        info!("Adding labels {:?} for transaction {}", tags, trans_id);
+    pub(crate) fn add_labels(&mut self, trans_id: u32, labels_to_add: &[&str]) {
+        info!("Adding labels {:?} for transaction {}", labels_to_add, trans_id);
 
-        for tag in tags {
-            if !self.tag_name_to_id.contains_key(*tag) {
-                self.tag_name_to_id.insert(tag.to_string(), self.tag_id_seed);
-                self.tag_id_to_name.insert(self.tag_id_seed, tag.to_string());
-                self.tag_id_to_transactions.insert(self.tag_id_seed, vec![]);
-                self.tag_id_seed += 1;
-
-            }
-
-            let tag_id = self.tag_name_to_id.get(*tag).unwrap();
+        for label in labels_to_add {
+            // Ensure label is in minhash. Get the minhash for this label.
+            let label_id = self.put_label(label);
             let transaction = self.transactions.get_mut(&trans_id).unwrap();
-            if !transaction.tags.contains(tag_id) {
-                transaction.tags.push(*tag_id);
-                self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
+            if !transaction.tags.contains(&label_id) {
+                transaction.tags.push(label_id);
+                // self.tag_id_to_transactions may not have the new label_id
+                self.tag_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
             }
         }
 
@@ -272,7 +275,7 @@ impl Database {
             let t = self.transactions.get(trans_id).unwrap();
             let labels = auto_labeller.label(&self.to_transaction(t));
             if !labels.is_empty() {
-                self.add_tags(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+                self.add_labels(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
             }
         }
     }
@@ -433,6 +436,18 @@ impl Database {
         // TODO: use a function to format tags
         Transaction::new(t.id, t.account.clone(), t.date, t.description.as_str(), t.amount,
                          t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>())
+    }
+
+    /// Add a new label to to id->label map if not existed yet.
+    fn put_label(&mut self, label: &str) -> u32 {
+        let label_id = self.tag_name_to_id.entry(label.to_string()).or_insert_with(|| {
+            let label_id = self.tag_id_seed;
+            self.tag_id_seed += 1;
+            self.tag_id_to_name.insert(label_id, label.to_string());
+            label_id
+        });
+
+        *label_id
     }
 }
 
