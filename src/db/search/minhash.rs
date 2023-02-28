@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct StringMinHash {
     string_to_id: HashMap<String, u32>,
     id_to_string: HashMap<u32, String>,
