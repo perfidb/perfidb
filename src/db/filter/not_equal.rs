@@ -9,9 +9,9 @@ pub(crate) fn handle_not_equal(left: Expr, right: Expr, database: &Database, tra
             // WHERE label != '...'
             "label" => {
                 if let Expr::Value(Value::SingleQuotedString(tag)) = right {
-                    return match database.tag_name_to_id.get(&tag) {
+                    return match database.label_minhash.lookup_by_string(tag) {
                         Some(tag_id) => {
-                            transactions.iter().filter(|id| !database.transactions.get(id).unwrap().tags.contains(tag_id)).cloned().collect::<HashSet<u32>>()
+                            transactions.iter().filter(|id| !database.transactions.get(id).unwrap().labels.contains(&tag_id)).cloned().collect::<HashSet<u32>>()
                         },
                         None => HashSet::new()
                     };

@@ -52,7 +52,7 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database) -> Res
                             std::io::stdin().read_line(&mut new_labels)?;
                             let trans_id = transactions[window.selected_transaction_index()].id;
                             db.update_labels(trans_id, &new_labels);
-                            transactions[window.selected_transaction_index()].tags = db.find_by_id(trans_id).tags;
+                            transactions[window.selected_transaction_index()].labels = db.find_by_id(trans_id).labels;
                             terminal::enable_raw_mode().unwrap();
                             repaint_window(vec![(window.selected_row, window.offset + window.selected_row as usize, true)], &transactions, window.selected_row);
                             execute!(stdout(), MoveTo(114, window.selected_row)).unwrap();

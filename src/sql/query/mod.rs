@@ -44,7 +44,7 @@ pub(crate) fn run_query(query: Box<Query>, db: &mut Database, auto_label_config_
                 let tagger = Tagger::new(&Config::load_from_file(auto_label_config_file));
                 for t in transactions.iter_mut() {
                     let new_labels = tagger.label(t);
-                    t.tags = new_labels;
+                    t.labels = new_labels;
                 }
             }
 
@@ -80,7 +80,7 @@ fn process_projection(projection: &[SelectItem], group_by: &[Expr], transactions
 }
 
 fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {
-    if is_tagging && !t.tags.is_empty() {
+    if is_tagging && !t.labels.is_empty() {
         cell.fg(Color::Black).bg(Color::Green)
     } else {
         cell
@@ -153,7 +153,7 @@ fn group_by_tags(transactions: &[Transaction], table: &mut Table) {
 
     let mut group_by_map: HashMap<&str, f32> = HashMap::new();
     for t in transactions {
-        for tag in &t.tags {
+        for tag in &t.labels {
             let entry = group_by_map.entry(tag.as_str()).or_insert(0.0);
             *entry += t.amount;
         }

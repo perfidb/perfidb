@@ -14,9 +14,9 @@ pub(crate) fn handle_equals(left: Expr, right: Expr, database: &Database, transa
             // WHERE label = '...'
             "label" => {
                 if let Expr::Value(Value::SingleQuotedString(tag)) = right {
-                    return match database.tag_name_to_id.get(&tag) {
+                    return match database.label_minhash.lookup_by_string(tag) {
                         Some(tag_id) => {
-                            transactions.iter().filter(|id| database.transactions.get(id).unwrap().tags.contains(tag_id)).cloned().collect::<HashSet<u32>>()
+                            transactions.iter().filter(|id| database.transactions.get(id).unwrap().labels.contains(&tag_id)).cloned().collect::<HashSet<u32>>()
                         },
                         None => HashSet::new()
                     };
@@ -67,10 +67,10 @@ fn parse_date_range(date_expr: &Expr) -> Result<Range<NaiveDate>, ()> {
                 year -= 1;
             }
 
-            let first_day = NaiveDate::from_ymd(year, month, 1);
+            let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
             let next_month = if month == 12 { 1 } else { month + 1 };
             let next_month_year = if month == 12 { year + 1 } else { year };
-            let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
+            let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
 
             return Ok(first_day..first_day_next_month);
         }
@@ -88,10 +88,10 @@ fn parse_date_range(date_expr: &Expr) -> Result<Range<NaiveDate>, ()> {
             let year = splitted[0].to_string().parse::<i32>().unwrap();
             let month = splitted[1].to_string().parse::<u32>().unwrap();
 
-            let first_day = NaiveDate::from_ymd(year, month, 1);
+            let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
             let next_month = if month == 12 { 1 } else { month + 1 };
             let next_month_year = if month == 12 { year + 1 } else { year };
-            let first_day_next_month = NaiveDate::from_ymd(next_month_year, next_month, 1);
+            let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
 
             return Ok(first_day..first_day_next_month);
         }

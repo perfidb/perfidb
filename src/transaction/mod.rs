@@ -11,8 +11,8 @@ pub(crate) struct Transaction {
     pub(crate) date: NaiveDateTime,
     pub(crate) description: String,
     pub(crate) amount: f32,
-    #[serde(serialize_with = "serialise_tags", rename(serialize = "_perfidb_label"))]
-    pub(crate) tags: Vec<String>,
+    #[serde(serialize_with = "serialise_labels", rename(serialize = "_perfidb_label"))]
+    pub(crate) labels: Vec<String>,
 }
 
 impl Transaction {
@@ -24,17 +24,17 @@ impl Transaction {
             date,
             description,
             amount,
-            tags,
+            labels: tags,
         }
     }
 
     pub(crate) fn tags_display(&self) -> String {
-        self.tags.join(", ")
+        self.labels.join(", ")
     }
 }
 
 /// Join all tags by a bar |
-fn serialise_tags<S>(tags: &[String], serializer: S) -> Result<S::Ok, S::Error>
+fn serialise_labels<S>(tags: &[String], serializer: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
     serializer.collect_str(tags.join("|").as_str())
 }

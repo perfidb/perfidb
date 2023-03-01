@@ -1,10 +1,11 @@
 mod filter;
 mod search;
+mod minhash;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{Read, Seek, SeekFrom, Write};
-use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::path::Path;
 
 use chrono::{NaiveDate, NaiveDateTime};
@@ -12,9 +13,11 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr};
 use sqlparser::ast::Expr::Identifier;
-use crate::common::{ResultError};
+use crate::common::ResultError;
 
 use crate::csv_reader::Record;
+use minhash::StringMinHash;
+use crate::db::search::SearchIndex;
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
@@ -33,12 +36,12 @@ pub(crate) struct TransactionRecord {
     amount: f32,
 
     // List of tag ids
-    tags: Vec<u32>,
+    labels: Vec<u32>,
 }
 
 impl TransactionRecord {
     pub(crate) fn has_tags(&self) -> bool {
-        !self.tags.is_empty()
+        !self.labels.is_empty()
     }
 }
 
@@ -49,7 +52,7 @@ pub(crate) struct Metadata {
     version: String
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Database {
     transaction_id_seed: u32,
     transactions: HashMap<u32, TransactionRecord>,
@@ -57,18 +60,13 @@ pub(crate) struct Database {
     /// Key is transaction date, value is a list of transaction ids.
     date_index: BTreeMap<NaiveDate, Vec<u32>>,
 
-    /// key is tag string, value is tag's index
-    tag_name_to_id: HashMap<String, u32>,
+    label_minhash: StringMinHash,
 
-    tag_id_to_name: HashMap<u32, String>,
-
-    tag_id_seed: u32,
-
-    /// tag id to a list of transactions with that tag
-    tag_id_to_transactions: HashMap<u32, Vec<u32>>,
+    /// label id to a list of transactions with that tag
+    label_id_to_transactions: HashMap<u32, Vec<u32>>,
 
     /// Inverted index for full-text search on 'description'
-    token_to_transactions: HashMap<String, HashSet<u32>>,
+    search_index: SearchIndex,
 
     #[serde(skip_serializing, skip_deserializing)]
     file_path: Option<String>,
@@ -83,11 +81,9 @@ impl Database {
             transaction_id_seed: 1,
             transactions: HashMap::new(),
             date_index: BTreeMap::new(),
-            tag_name_to_id: HashMap::new(),
-            tag_id_to_name: HashMap::new(),
-            tag_id_seed: 1,
-            tag_id_to_transactions: HashMap::new(),
-            token_to_transactions: HashMap::new(),
+            label_minhash: StringMinHash::new(),
+            label_id_to_transactions: HashMap::new(),
+            search_index: SearchIndex::new(),
             file_path: Some(file_path),
             last_query_results: None,
         }
@@ -145,14 +141,16 @@ impl Database {
             None => self.transaction_id_seed
         };
 
-        if trans_id > self.transaction_id_seed {
+        if trans_id == self.transaction_id_seed {
+            self.transaction_id_seed += 1;
+        } else if trans_id > self.transaction_id_seed {
             self.transaction_id_seed = trans_id + 1;
         }
 
         let labels = match &t.labels {
             Some(l) => l.clone(),
             None => vec![]
-        }.iter().map(|l| self.put_label(l)).collect();
+        }.iter().map(|l| self.label_minhash.put(l)).collect();
 
         let t = TransactionRecord {
             id: trans_id,
@@ -160,7 +158,7 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
-            tags: labels,
+            labels: labels,
         };
 
         let date: NaiveDate = t.date.date();
@@ -169,30 +167,18 @@ impl Database {
         // Add to date index
         self.date_index.get_mut(&date).unwrap().push(trans_id);
 
-        self.index_description(trans_id, &t.description);
+        self.search_index.index(&t);
 
         // Add to transactions table
         self.transactions.insert(trans_id, t);
-    }
-
-    /// Tokenise description by whitespace and add trans_id into reverse index
-    fn index_description(&mut self, trans_id: u32, description: &str) {
-        for token in description.split_whitespace() {
-            let token = token.to_lowercase();
-            if !self.token_to_transactions.contains_key(token.as_str()) {
-                self.token_to_transactions.insert(token.clone(), HashSet::new());
-            }
-
-            self.token_to_transactions.get_mut(&token).unwrap().insert(trans_id);
-        }
     }
 
     pub(crate) fn update_labels(&mut self, trans_id: u32, labels: &str) {
         let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
 
         let mut existing_labels = HashSet::<String>::new();
-        for tag_id in self.transactions.get(&trans_id).unwrap().tags.iter() {
-            existing_labels.insert(self.tag_id_to_name.get(tag_id).unwrap().clone());
+        for tag_id in self.transactions.get(&trans_id).unwrap().labels.iter() {
+            existing_labels.insert(self.label_minhash.lookup_by_hash(tag_id).unwrap().clone());
         }
 
         let mut tags_to_remove :Vec<&str> = vec![];
@@ -222,12 +208,12 @@ impl Database {
 
         for label in labels_to_add {
             // Ensure label is in minhash. Get the minhash for this label.
-            let label_id = self.put_label(label);
+            let label_id = self.label_minhash.put(label.to_string());
             let transaction = self.transactions.get_mut(&trans_id).unwrap();
-            if !transaction.tags.contains(&label_id) {
-                transaction.tags.push(label_id);
-                // self.tag_id_to_transactions may not have the new label_id
-                self.tag_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
+            if !transaction.labels.contains(&label_id) {
+                transaction.labels.push(label_id);
+                // self.label_id_to_transactions may not have the new label_id
+                self.label_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
             }
         }
 
@@ -243,20 +229,13 @@ impl Database {
         transactions = self.filter_transactions(&transactions, where_clause);
 
         for label in labels {
-            if !self.tag_name_to_id.contains_key(*label) {
-                self.tag_name_to_id.insert(label.to_string(), self.tag_id_seed);
-                self.tag_id_to_name.insert(self.tag_id_seed, label.to_string());
-                self.tag_id_to_transactions.insert(self.tag_id_seed, vec![]);
-                self.tag_id_seed += 1;
+            let label_id = self.label_minhash.put(label.to_string());
 
-            }
-
-            let tag_id = self.tag_name_to_id.get(*label).unwrap();
             for trans_id in &transactions {
                 let transaction = self.transactions.get_mut(trans_id).unwrap();
-                if !transaction.tags.contains(tag_id) {
-                    transaction.tags.push(*tag_id);
-                    self.tag_id_to_transactions.get_mut(tag_id).unwrap().push(transaction.id);
+                if !transaction.labels.contains(&label_id) {
+                    transaction.labels.push(label_id);
+                    self.label_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
                 }
             }
         }
@@ -280,16 +259,16 @@ impl Database {
         }
     }
 
-    pub(crate) fn remove_tags(&mut self, trans_id: u32, tags: &[&str]) {
-        info!("Removing tags {:?} from transaction {}", tags, trans_id);
+    pub(crate) fn remove_tags(&mut self, trans_id: u32, labels: &[&str]) {
+        info!("Removing tags {:?} from transaction {}", labels, trans_id);
         let transaction = self.transactions.get_mut(&trans_id).unwrap();
 
-        for tag in tags {
+        for label in labels {
             // Only run if this tag id exists
-            if let Some(tag_id_to_remove) = self.tag_name_to_id.get(*tag) {
-                transaction.tags.retain(|tag_id| *tag_id != *tag_id_to_remove);
+            if let Some(label_id_to_remove) = self.label_minhash.lookup_by_string(*label) {
+                transaction.labels.retain(|existing_id| *existing_id != label_id_to_remove);
                 // Remove transaction from dictionary
-                self.tag_id_to_transactions.get_mut(tag_id_to_remove).unwrap().retain(|existing_trans_id| *existing_trans_id != trans_id);
+                self.label_id_to_transactions.get_mut(&label_id_to_remove).unwrap().retain(|existing_trans_id| *existing_trans_id != trans_id);
             }
         }
 
@@ -317,8 +296,8 @@ impl Database {
             },
 
             // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
-            Expr::Like { negated, expr, pattern, escape_char} => {
-                filter::handle_like(pattern.clone(), transactions, self)
+            Expr::Like { negated, pattern, ..} => {
+                filter::handle_like(pattern.clone(), self)
             },
 
             // label IS NULL
@@ -435,19 +414,7 @@ impl Database {
     fn to_transaction(&self, t: &TransactionRecord) -> Transaction {
         // TODO: use a function to format tags
         Transaction::new(t.id, t.account.clone(), t.date, t.description.as_str(), t.amount,
-                         t.tags.iter().map(|tag_id| self.tag_id_to_name.get(tag_id).unwrap().clone()).collect::<Vec<String>>())
-    }
-
-    /// Add a new label to to id->label map if not existed yet.
-    fn put_label(&mut self, label: &str) -> u32 {
-        let label_id = self.tag_name_to_id.entry(label.to_string()).or_insert_with(|| {
-            let label_id = self.tag_id_seed;
-            self.tag_id_seed += 1;
-            self.tag_id_to_name.insert(label_id, label.to_string());
-            label_id
-        });
-
-        *label_id
+                         t.labels.iter().map(|tag_id| self.label_minhash.lookup_by_hash(tag_id).unwrap().clone()).collect::<Vec<String>>())
     }
 }
 
@@ -465,7 +432,7 @@ mod tests {
             date: NaiveDateTime::from_str("2022-07-31T17:30:45").unwrap(),
             description: "food".to_string(),
             amount: 29.95,
-            tags: vec![]
+            labels: vec![]
         };
 
         let s = serde_json::to_string::<TransactionRecord>(&t).unwrap();

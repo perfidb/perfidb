@@ -33,8 +33,8 @@ impl StringMinHash {
         }
     }
 
-    pub(crate) fn lookup_by_hash(&self, hash: u32) -> Option<&String> {
-        self.id_to_string.get(&hash)
+    pub(crate) fn lookup_by_hash(&self, hash: &u32) -> Option<&String> {
+        self.id_to_string.get(hash)
     }
 
     pub(crate) fn lookup_by_string<S>(&self, str: S) -> Option<u32> where S: Into<String> {

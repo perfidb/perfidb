@@ -42,7 +42,7 @@ fn main() {
 
     let cli :Cli = Cli::parse();
 
-    let mut db= init_and_load_database(&cli.file);
+    let mut db = init_and_load_database(&cli.file);
     let auto_label_rules_file = match &cli.auto_label_rules_file {
         Some(f) => f.clone(),
         None => {
