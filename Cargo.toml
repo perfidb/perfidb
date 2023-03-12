@@ -26,6 +26,7 @@ crossterm = "0.25.0"
 byteorder = "1"
 roaring = "0.10"
 bytes = "1"
+nom = "7.1.3"
 
 log = "0.4"
 env_logger = "0.9"

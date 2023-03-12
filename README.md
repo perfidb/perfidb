@@ -9,7 +9,7 @@ PerfiDB is a SQL database engineered specifically to store and manage personal f
 # Examples
 ```sql
 -- Import transactions to account 'amex' from a csv file
-COPY amex FROM 'bank-exports/2022-03.csv';
+IMPORT amex FROM 'bank-exports/2022-03.csv';
 
 -- List all transactions
 SELECT * FROM db;
@@ -36,14 +36,12 @@ perfidb myfinance.db
 ### Import transactions
 To import transactions from a csv file into account _amex_gold_
 ```sql
-COPY amex_gold FROM 'bank-exports/2022-03.csv';
+IMPORT amex_gold FROM 'bank-exports/2022-03.csv';
 ```
-
-Note: Because hyphen `-` is interpreted as 'minus' in SQL, if you want to use `-` in account name you need to surround account name by single quotation marks, e.g. `'amex-gold'`.
 
 To print out records from csv file without actually saving to database, specify dry-run:
 ```sql
-COPY amex_gold FROM 'bank-exports/2022-03.csv' WITH (FORMAT dryrun)
+IMPORT amex_gold FROM 'bank-exports/2022-03.csv' (dryrun)
 ```
 
 If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
@@ -51,12 +49,14 @@ If you are wondering how are CSV files parsed, see _How are CSV files parsed_ se
 ### Export transactions
 To export all transactions to a CSV file
 ```sql
-COPY db TO '/home/ren/all_trans.csv'
+EXPORT TO '/home/ren/all_trans.csv'
 ```
 
 To export transactions from a specific account to a CSV file
+
+(Note: note implemented at the moment)
 ```sql
-COPY amex TO './amex.csv'
+EXPORT amex TO './amex.csv'
 ```
 
 ### Query
@@ -131,4 +131,3 @@ If header line is detected, it will also try to detect those columns and then pa
 It also tries to parse the transaction date with a few common date formats.
 
 If no header line is detected in CSV it assumes the column in following order: date, amount, description.
-

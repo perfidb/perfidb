@@ -2,6 +2,7 @@ mod query;
 mod insert;
 mod util;
 mod copy;
+mod parser;
 
 use log::{info, warn};
 use sqlparser::ast::{Expr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
@@ -12,6 +13,18 @@ use crate::sql::query::run_query;
 use crate::tagger::Tagger;
 
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), ParserError> {
+    // First use our own parser to parse
+    let result = parser::parse(&sql);
+    if let Ok(statement) = result {
+        match statement {
+            parser::Statement::EXPORT(file_path) => copy::execute_export_db(db, &file_path),
+            parser::Statement::IMPORT(account, file_path, inverse_amount, dryrun) => copy::execute_import(db, &account, &file_path, inverse_amount, dryrun),
+        }
+
+        return Ok(());
+    }
+
+    // Now we fall back to sqlparser. We will gradually migrate sqlparser to our own nom based parser.
     let dialect = GenericDialect {};
     let sql_parse_result = sqlparser::parser::Parser::parse_sql(&dialect, sql.as_str());
 
@@ -28,18 +41,6 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
 
                     Statement::Insert { table_name, source, .. } => {
                         insert::execute_insert(db, table_name, source);
-                    },
-
-                    Statement::Copy { table_name, to, target, options, .. } => {
-                        // // Grab index 0 for now. TODO: make it nicer
-                        let table_name :&str = table_name.0[0].value.as_str();
-
-                        let is_export = to;
-                        if is_export {
-                            copy::execute_export(db, table_name, &target);
-                        } else {
-                            copy::execute_import(db, table_name, &target, &options);
-                        }
                     },
 
                     Statement::Update { assignments, selection: Some(where_clause), .. } => {

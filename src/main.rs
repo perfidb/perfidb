@@ -89,6 +89,10 @@ fn main() {
                     let sql = sql_buffer.join("\n");
                     rl.add_history_entry(sql.trim());
 
+                    // Remove leading and trailing space and semicolon
+                    let pattern :&[_] = &[' ', ';'];
+                    let sql = sql.trim_matches(pattern).to_string();
+
                     let result = parse_and_run_sql(&mut db, sql, auto_label_rules_file.as_str());
                     if let Err(err) = result {
                         println!("{}", err);
