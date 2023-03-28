@@ -1,0 +1,5 @@
+Time,BSB / Account Number,Transaction Type,Payee,Description,Category,Tags,Subtotal (AUD),Currency,Subtotal (Transaction Currency),Fee (AUD),Round Up (AUD),Total (AUD),Payment Method,Settled Date
+2021-04-29T12:34:20+10:00,600-123 / 12345678,Purchase,Guzman y Gomez,"Guzman y Gomez, North Sydney",Takeaway,"",-12.40,AUD,-12.40,0.00,0.60,-13.00,"",2021-04-30
+2021-04-29T08:15:06+10:00,600-123 / 12345678,Purchase,Amazon Prime,"AMZNPRIMEAU MEMBE,SYDNEY SOUTH","TV, Music & Streaming","",-6.99,AUD,-6.99,0.00,0.01,-7.00,"",2021-04-30
+2021-04-26T07:00:09+10:00,600-123 / 12345678,Purchase,Grace's Bakehouse,"GRACES BAKEHOUSE, ST IVES",Groceries,"",-6.30,AUD,-6.30,0.00,0.70,-7.00,"",2021-04-28
+2021-04-25T14:01:49+10:00,600-123 / 12345678,Purchase,JB Hi-Fi,"JB HI FI, CHATSWOOD",Technology,"",-11.99,AUD,-11.99,0.00,0.01,-12.00,"",2021-04-27

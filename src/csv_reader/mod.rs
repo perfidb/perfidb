@@ -49,49 +49,31 @@ struct CsvHeaderIndex {
 
 pub(crate) fn read_transactions(table_name :&str, file_path: &Path, inverse_amount: bool) -> Result<Vec<Record>, CsvError> {
     if !file_path.exists() {
-        return Err(CsvError::FileNotFoundError("File not found".to_string()));
+        return Err(CsvError::FileNotFoundError("File not found".into()));
     }
 
-    info!("Scanning CSV headers from {:?}", file_path);
-    // Checking if first row is header
-    let mut rdr = csv::ReaderBuilder::new().has_headers(false).from_path(file_path).unwrap();
-    let mut first_row = StringRecord::new();
-    rdr.read_record(&mut first_row).unwrap();
-    let mut first_row_joined = String::new();
-    for column in first_row.iter() {
-        first_row_joined.push_str(column);
-        first_row_joined.push('|');
-    }
-    let mut second_row = StringRecord::new();
-    let has_second_row = rdr.read_record(&mut second_row).unwrap();
+    let header_row = detect_header_row(file_path);
 
-    info!("Analysing first row: {}", first_row_joined.as_str());
-
-    let header_pattern = Regex::new(r"(?i)_perfidb_account|date|time|amount|total|description").unwrap();
-    let has_header = has_second_row
-        && header_pattern.is_match(first_row_joined.as_str())
-        && first_row.get(0).unwrap().len() != second_row.get(0).unwrap().len();
-
-
-    let mut rdr = csv::ReaderBuilder::new().has_headers(has_header).from_path(file_path).unwrap();
-    let header_index :CsvHeaderIndex = if has_header {
-        info!("Header row detected");
-        parse_header_index(rdr.headers().unwrap())?
-    } else {
-        info!("No header row detected");
-
-        // TODO: ensure robust handling of header index when no header is detected
-        CsvHeaderIndex {
-            perfidb_transaction_id_index: None,
-            perfidb_account_index: None,
-            perfidb_label_index: None,
-            date: 0,
-            amount: 1,
-            credit_amount: None,
-            description: 2
+    let header_index = match &header_row {
+        Some(header_row) => {
+            info!("Header row detected");
+            parse_header_index(header_row)?
+        },
+        None => {
+            // TODO: ensure robust handling of header index when no header is detected
+            CsvHeaderIndex {
+                perfidb_transaction_id_index: None,
+                perfidb_account_index: None,
+                perfidb_label_index: None,
+                date: 0,
+                amount: 1,
+                credit_amount: None,
+                description: 2
+            }
         }
     };
 
+    let mut rdr = csv::ReaderBuilder::new().has_headers(header_row.is_some()).from_path(file_path).unwrap();
     let mut records :Vec<Record> = vec![];
     let inverse_amount :f32 = if inverse_amount { -1.0 } else { 1.0 };
     for record in rdr.records() {
@@ -131,6 +113,33 @@ pub(crate) fn read_transactions(table_name :&str, file_path: &Path, inverse_amou
     }
 
     Ok(records)
+}
+
+/// Try detecting if the first row of csv file is a 'header' row.
+/// Most bank statements should include a header row, e.g. "date | amount | description". Some banks' statement does not
+/// include a header row, the first row is the first transaction data.
+fn detect_header_row(csv_path: &Path) -> Option<StringRecord> {
+    let mut csv_reader = csv::ReaderBuilder::new().has_headers(false).from_path(csv_path).unwrap();
+    let mut first_row = StringRecord::new();
+    csv_reader.read_record(&mut first_row).unwrap();
+
+    let mut match_header_pattern = false;
+    let header_pattern = Regex::new(r"(?i)_perfidb_account|date|time|amount|total|description").unwrap();
+    for column in first_row.iter() {
+        if header_pattern.is_match(column) {
+            match_header_pattern = true;
+            break;
+        }
+    }
+
+    let mut second_row = StringRecord::new();
+    let has_second_row = csv_reader.read_record(&mut second_row).unwrap();
+
+    let has_header = has_second_row
+        && match_header_pattern
+        && first_row.get(0).unwrap().len() != second_row.get(0).unwrap().len();
+
+    if has_header { Some(first_row) } else { None }
 }
 
 fn parse_header_index(headers: &StringRecord) -> Result<CsvHeaderIndex, CsvError> {
@@ -250,3 +259,6 @@ fn parse_amount(row: &StringRecord, header_index: &CsvHeaderIndex) -> f32 {
         row.get(header_index.credit_amount.unwrap()).unwrap().replace(['$', ','], "").parse::<f32>().unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests;
