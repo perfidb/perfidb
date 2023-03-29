@@ -24,6 +24,18 @@ fn test_read_transactions() {
     }
 }
 
+#[test]
+fn test_read_no_header() {
+    let results = read_transactions("amex", &fixture_filename("no_header.csv"), false);
+    match results {
+        Ok(rows) => {
+            assert_eq!(rows.len(), 8);
+            assert_eq!(rows[7].amount, -154.47);
+        },
+        Err(e) => panic!("Unexpected results")
+    }
+}
+
 /// Return the path to a file within the test data directory
 pub(crate) fn fixture_filename(filename: &str) -> PathBuf {
     let mut dir = fixture_dir();
