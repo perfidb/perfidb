@@ -20,7 +20,7 @@ fn test_read_transactions() {
         Ok(rows) => {
             assert_eq!(rows.len(), 4);
         },
-        Err(e) => panic!("Unexpected results")
+        Err(e) => panic!("{e:?}")
     }
 }
 
@@ -32,7 +32,7 @@ fn test_read_no_header() {
             assert_eq!(rows.len(), 8);
             assert_eq!(rows[7].amount, -154.47);
         },
-        Err(e) => panic!("Unexpected results")
+        Err(e) => panic!("{e:?}")
     }
 }
 

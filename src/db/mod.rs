@@ -158,7 +158,7 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
-            labels: labels,
+            labels,
         };
 
         let date: NaiveDate = t.date.date();
@@ -296,8 +296,8 @@ impl Database {
             },
 
             // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
-            Expr::Like { negated, pattern, ..} => {
-                filter::handle_like(pattern.clone(), self)
+            Expr::Like { pattern, ..} => {
+                filter::handle_like((**pattern).clone(), self)
             },
 
             // label IS NULL

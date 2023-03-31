@@ -9,7 +9,7 @@ use crate::sql::util::{expr_to_float, expr_to_s};
 pub(crate) fn execute_insert(db : &mut Database, table: ObjectName, source: Box<Query>) {
     let account_name = table.to_string();
 
-    match *(*source).body {
+    match *source.body {
         SetExpr::Values(values) => {
             // SQL supports inserting multiple rows in one INSERT statement, i.e.
             // INSERT INTO account1 VALUES ('2022-01-02', 'food', -30.4), ('2022-01-02', 'petrol', -20)

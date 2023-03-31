@@ -44,7 +44,7 @@ pub(crate) fn parse_csv_column_with_header(headers: &StringRecord) -> Result<Col
             break;
         }
     }
-    if let None = date_index {
+    if date_index.is_none() {
         return Err(CsvError::InvalidFileError("Unable to locate 'date' column".to_string()));
     }
 
@@ -55,7 +55,7 @@ pub(crate) fn parse_csv_column_with_header(headers: &StringRecord) -> Result<Col
             break;
         }
     }
-    if let None = description_index {
+    if description_index.is_none() {
         return Err(CsvError::InvalidFileError("Unable to locate 'description' column".to_string()));
     }
 
@@ -77,7 +77,7 @@ pub(crate) fn parse_csv_column_with_header(headers: &StringRecord) -> Result<Col
         return Err(CsvError::InvalidFileError("Unable to locate debit and credit amount column".to_string()));
     }
 
-    if let None = debit_amount_index {
+    if debit_amount_index.is_none() {
         let amount_regex = Regex::new(r"(?i)amount|subtotal").unwrap();
         for (i, s) in headers.iter().enumerate() {
             if amount_regex.is_match(s) {
@@ -85,7 +85,7 @@ pub(crate) fn parse_csv_column_with_header(headers: &StringRecord) -> Result<Col
                 break;
             }
         }
-        if let None = debit_amount_index {
+        if debit_amount_index.is_none() {
             return Err(CsvError::InvalidFileError("Unable to locate amount column".to_string()));
         }
     }

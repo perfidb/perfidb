@@ -66,10 +66,7 @@ pub(crate) fn read_transactions(table_name :&str, file_path: &Path, inverse_amou
         let description = row.get(column_info.description_column).unwrap().to_string();
         let amount = parse_amount(&row, &column_info) * inverse_amount;
 
-        let id = match column_info.perfidb_transaction_id_column {
-            Some(i) => Some(row.index(i).parse::<u32>().unwrap()),
-            None => None
-        };
+        let id = column_info.perfidb_transaction_id_column.map(|i| row.index(i).parse::<u32>().unwrap());
 
         let account = match column_info.perfidb_account_column {
             Some(i) => row.index(i).to_string(),

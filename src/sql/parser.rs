@@ -9,9 +9,9 @@ use crate::common::Error;
 #[derive(Debug, PartialEq)]
 pub(crate) enum Statement {
     /// EXPORT TO file_path
-    EXPORT(String),
+    Export(String),
     /// IMPORT account FROM file_path
-    IMPORT(String, String, bool, bool),
+    Import(String, String, bool, bool),
 }
 
 pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
@@ -29,7 +29,7 @@ fn export(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("TO")(input)?;
     let (file_path, _) =  multispace1(input)?;
     let quotation_marks :&[_] = &['\'', '"'];
-    Ok((file_path, Statement::EXPORT(file_path.trim_matches(quotation_marks).to_string())))
+    Ok((file_path, Statement::Export(file_path.trim_matches(quotation_marks).to_string())))
 }
 
 /// Parse `IMPORT amex-explorer FROM ./file/path (inverse dryrun)
@@ -58,7 +58,7 @@ fn import(input: &str) -> IResult<&str, Statement> {
     }
 
     let quotation_marks :&[_] = &['\'', '"'];
-    Ok((file_path, Statement::IMPORT(
+    Ok((file_path, Statement::Import(
         account.to_string(),
         file_path.trim_matches(quotation_marks).to_string(),
         inverse_flag,
