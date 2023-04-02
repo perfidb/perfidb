@@ -1,9 +1,13 @@
+pub(crate) mod select;
+
 use std::collections::HashMap;
 use chrono::NaiveDateTime;
+use clap::builder::TypedValueParser;
 use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
 use log::{warn};
 use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, TableFactor, Value};
 use crate::{Config, Database};
+use crate::sql::parser::Projection;
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
@@ -66,7 +70,6 @@ fn process_projection(projection: &[SelectItem], group_by: &[Expr], transactions
     table.remove_style(TableComponent::LeftBorderIntersections);
     table.remove_style(TableComponent::RightBorderIntersections);
 
-
     // if 'GROUP BY tags'
     if group_by.len() == 1 {
         if let Expr::Identifier(ident) = &group_by[0] {
@@ -75,6 +78,27 @@ fn process_projection(projection: &[SelectItem], group_by: &[Expr], transactions
             }
         }
     } else {
+        let projection :Projection = match &projection[0] {
+            // SELECT * FROM ...
+            SelectItem::Wildcard(_) => Projection::Star,
+            // SELECT 123 FROM ...
+            // Select by id has already been handled above
+            SelectItem::UnnamedExpr(Expr::Value(Value::Number(num_string, _))) => Projection::Id(num_string.parse::<usize>().unwrap()),
+
+            // SELECT SUM(*) FROM
+            // SELECT COUNT(*) FROM
+            SelectItem::UnnamedExpr(Expr::Function(func)) => {
+                let func_name: String = func.name.0[0].value.to_ascii_uppercase();
+                match func_name.as_str() {
+                    "SUM" => Projection::Sum,
+                    "COUNT" => Projection::Count,
+                    "AUTO" => Projection::Auto,
+                    _ => Projection::Star
+                }
+            },
+            _ => Projection::Star
+        };
+
         handle_normal_select(transactions, &mut table, projection);
     }
 }
@@ -87,38 +111,29 @@ fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {
     }
 }
 
-fn handle_normal_select(transactions: &[Transaction], table: &mut Table, projection: &[SelectItem]) {
+fn handle_normal_select(transactions: &[Transaction], table: &mut Table, projection: Projection) {
     let mut is_normal_select = false;
     let mut is_sum = false;
     let mut is_count = false;
     // Is auto labelling transactions
     let mut is_auto_labelling = false;
 
-    match &projection[0] {
+    match projection {
         // SELECT * FROM ...
-        SelectItem::Wildcard(_) |
+        Projection::Star |
         // SELECT 123 FROM ...
         // Select by id has already been handled above
-        SelectItem::UnnamedExpr(Expr::Value(Value::Number(_, _))) => is_normal_select = true,
+        Projection::Id(_) => is_normal_select = true,
 
         // SELECT SUM(*) FROM
         // SELECT COUNT(*) FROM
-        SelectItem::UnnamedExpr(Expr::Function(func)) => {
-            is_normal_select = false;
-            let func_name: String = func.name.0[0].value.to_ascii_uppercase();
-            match func_name.as_str() {
-                "SUM" => is_sum = true,
-                "COUNT" => is_count = true,
-                "AUTO" => {
-                    is_normal_select = true;
-                    is_auto_labelling = true;
-                },
-                _ => ()
-            }
-        },
-        _ => ()
+        Projection::Sum => is_sum = true,
+        Projection::Count => is_count = true,
+        Projection::Auto => {
+            is_normal_select = true;
+            is_auto_labelling = true;
+        }
     }
-
 
     if is_normal_select {
         table.set_header(vec!["ID", "Account", "Date", "Description", "Amount", "Labels"]);
