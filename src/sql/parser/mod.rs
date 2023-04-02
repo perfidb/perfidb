@@ -17,15 +17,23 @@ pub(crate) enum Statement {
     /// IMPORT account FROM file_path
     Import(String, String, bool, bool),
     /// SELECT statement
-    Select
+    Select(Projection, Option<Condition>),
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum Projection {
     Star,
     Sum,
     Count,
     Auto,
     Id(usize),
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum Condition {
+    Spending(f32),
+    Income,
+    Description,
 }
 
 pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
@@ -35,7 +43,6 @@ pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
         Err(e) => Err(Error::new(e.to_string()))
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -49,11 +56,11 @@ mod tests {
 
         let query = "IMPORT amex-explorer FROM './finance/export.csv'";
         let result = parse(query);
-        assert_eq!(result, Ok(Statement::IMPORT("amex-explorer".to_string(), "./finance/export.csv".to_string(), false, false)));
+        assert_eq!(result, Ok(Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), false, false)));
 
         let query = "IMPORT amex-explorer FROM './finance/export.csv' (i, dryrun)";
         let result = parse(query);
-        assert_eq!(result, Ok(Statement::IMPORT("amex-explorer".to_string(), "./finance/export.csv".to_string(), true, true)));
+        assert_eq!(result, Ok(Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), true, true)));
 
     }
 }
