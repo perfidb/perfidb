@@ -1,7 +1,7 @@
 use nom::bytes::complete::{is_not, tag_no_case};
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::opt;
-use nom::{InputTakeAtPosition, IResult};
+use nom::{IResult};
 use nom::sequence::delimited;
 use crate::sql::parser::{non_space, Statement};
 

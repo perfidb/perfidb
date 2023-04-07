@@ -2,13 +2,11 @@ mod import;
 mod export;
 mod select;
 
+use std::ops::Range;
 use chrono::NaiveDate;
 use nom::bytes::complete::{is_not, tag_no_case};
-use nom::character::complete::{char, multispace0, multispace1};
 use nom::{InputTakeAtPosition, IResult};
 use nom::branch::alt;
-use nom::combinator::opt;
-use nom::sequence::delimited;
 use crate::common::Error;
 
 #[derive(Debug, PartialEq)]
@@ -37,7 +35,7 @@ pub(crate) enum Condition {
     Amount(Operator, f32),
     Description(Operator, String),
     /// Start date(inclusive) and end date(exclusive) for the period
-    Date(Operator, NaiveDate, NaiveDate),
+    Date(Operator, Range<NaiveDate>),
     Label(Operator, String),
 }
 
@@ -95,6 +93,5 @@ mod tests {
         let query = "IMPORT amex-explorer FROM './finance/export.csv' (i, dryrun)";
         let result = parse(query);
         assert_eq!(result, Ok(Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), true, true)));
-
     }
 }
