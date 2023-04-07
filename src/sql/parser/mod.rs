@@ -2,6 +2,7 @@ mod import;
 mod export;
 mod select;
 
+use chrono::NaiveDate;
 use nom::bytes::complete::{is_not, tag_no_case};
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::{InputTakeAtPosition, IResult};
@@ -31,9 +32,38 @@ pub(crate) enum Projection {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Condition {
-    Spending(f32),
-    Income,
-    Description,
+    Spending(Operator, f32),
+    Income(Operator, f32),
+    Amount(Operator, f32),
+    Description(Operator, String),
+    /// Start date(inclusive) and end date(exclusive) for the period
+    Date(Operator, NaiveDate, NaiveDate),
+    Label(Operator, String),
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum Operator {
+    Eq,
+    Gt,
+    GtEq,
+    Lt,
+    LtEq,
+    Match,
+}
+
+impl From<&str> for Operator {
+    fn from(value: &str) -> Self {
+        let lower_case = value.to_ascii_lowercase();
+        match lower_case.as_str() {
+            "=" => Operator::Eq,
+            ">" => Operator::Gt,
+            "<" => Operator::Lt,
+            ">=" => Operator::GtEq,
+            "<=" => Operator::LtEq,
+            "match" | "like" => Operator::Match,
+            _ => panic!("Unable to parse operator {}", lower_case)
+        }
+    }
 }
 
 pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
@@ -42,6 +72,10 @@ pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
         Ok((_, statement)) => Ok(statement),
         Err(e) => Err(Error::new(e.to_string()))
     }
+}
+
+pub(crate) fn non_space(input: &str) -> IResult<&str, &str> {
+    input.split_at_position_complete(char::is_whitespace)
 }
 
 #[cfg(test)]

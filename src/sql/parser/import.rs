@@ -3,7 +3,7 @@ use nom::character::complete::{char, multispace0, multispace1};
 use nom::combinator::opt;
 use nom::{InputTakeAtPosition, IResult};
 use nom::sequence::delimited;
-use crate::sql::parser::Statement;
+use crate::sql::parser::{non_space, Statement};
 
 /// Parse `IMPORT amex-explorer FROM ./file/path (inverse dryrun)
 /// TODO: handle file path with whitespace
@@ -41,10 +41,6 @@ pub(crate) fn import(input: &str) -> IResult<&str, Statement> {
 
 fn parse_import_options(input: &str) -> IResult<&str, Option<&str>> {
     opt(parentheses)(input)
-}
-
-fn non_space(input: &str) -> IResult<&str, &str> {
-    input.split_at_position_complete(char::is_whitespace)
 }
 
 fn parentheses(input: &str) -> IResult<&str, &str> {
