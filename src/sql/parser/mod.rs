@@ -1,10 +1,12 @@
 mod import;
 mod export;
 mod select;
+mod update;
+mod condition;
 
 use std::ops::Range;
 use chrono::NaiveDate;
-use nom::bytes::complete::{is_not, tag_no_case};
+
 use nom::{InputTakeAtPosition, IResult};
 use nom::branch::alt;
 use crate::common::Error;
@@ -17,6 +19,7 @@ pub(crate) enum Statement {
     Import(String, String, bool, bool),
     /// SELECT statement
     Select(Projection, Option<Condition>),
+    UpdateLabel(String, Option<Condition>),
 }
 
 #[derive(Debug, PartialEq)]

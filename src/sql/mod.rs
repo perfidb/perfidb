@@ -17,12 +17,16 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
     let result = parser::parse(&sql);
     if let Ok(statement) = result {
         match statement {
-            parser::Statement::Select(_, _) => query::select::run_select(db),
-            parser::Statement::Export(file_path) => copy::execute_export_db(db, &file_path),
-            parser::Statement::Import(account, file_path, inverse_amount, dryrun) => copy::execute_import(db, &account, &file_path, inverse_amount, dryrun),
+            parser::Statement::Export(file_path) => {
+                copy::execute_export_db(db, &file_path);
+                return Ok(())
+            },
+            parser::Statement::Import(account, file_path, inverse_amount, dryrun) => {
+                copy::execute_import(db, &account, &file_path, inverse_amount, dryrun);
+                return Ok(())
+            },
+            _ => ()
         }
-
-        return Ok(());
     }
 
     // Now we fall back to sqlparser. We will gradually migrate sqlparser to our own nom based parser.
