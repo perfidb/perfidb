@@ -1,10 +1,12 @@
 use std::ops::{Add, Range};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
+use log::warn;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag_no_case, take_till};
 use nom::character::complete::{char, multispace0, multispace1};
 use nom::error::{Error, ErrorKind};
 use nom::{AsChar, InputTakeAtPosition, IResult};
+use nom::multi::many0;
 use nom::sequence::delimited;
 use regex::Regex;
 use crate::sql::parser::{Condition, Operator};
@@ -13,12 +15,40 @@ use crate::sql::parser::{Condition, Operator};
 pub(crate) fn where_parser(input: &str) -> IResult<&str, Condition> {
     let (input, _) = tag_no_case("WHERE")(input)?;
     let (input, _) = multispace1(input)?;
+    let (input, first_condition) = single_condition(input)?;
+
+    match many0(alt((and_condition, or_condition)))(input) {
+        Ok((input, a)) => {
+            Ok((input, first_condition))
+        },
+        Err(_) => {
+            warn!("Unable to parse additional where condition {}", input);
+            Ok((input, first_condition))
+        }
+    }
+}
+
+fn single_condition(input: &str) -> IResult<&str, Condition> {
     alt((where_spending,
          where_income,
          where_amount,
          where_description,
          where_date,
          where_label))(input)
+}
+
+/// AND single_condition
+fn and_condition(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("AND")(input)?;
+    let (input, _) = multispace1(input)?;
+    single_condition(input)
+}
+
+/// OR single_condition
+fn or_condition(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("OR")(input)?;
+    let (input, _) = multispace1(input)?;
+    single_condition(input)
 }
 
 /// spending > 100.0

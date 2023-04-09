@@ -40,6 +40,8 @@ pub(crate) enum Condition {
     /// Start date(inclusive) and end date(exclusive) for the period
     Date(Operator, Range<NaiveDate>),
     Label(Operator, String),
+    And(Box<Condition>),
+    Or(Box<Condition>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -50,6 +52,12 @@ pub(crate) enum Operator {
     Lt,
     LtEq,
     Match,
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum LogicalOperator {
+    And,
+    Or
 }
 
 impl From<&str> for Operator {
