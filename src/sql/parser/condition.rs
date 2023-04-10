@@ -9,7 +9,7 @@ use nom::{AsChar, InputTakeAtPosition, IResult};
 use nom::multi::many0;
 use nom::sequence::delimited;
 use regex::Regex;
-use crate::sql::parser::{Condition, Operator};
+use crate::sql::parser::{Condition, LogicalOperator, Operator};
 
 /// WHERE ...
 pub(crate) fn where_parser(input: &str) -> IResult<&str, Condition> {
@@ -17,9 +17,14 @@ pub(crate) fn where_parser(input: &str) -> IResult<&str, Condition> {
     let (input, _) = multispace1(input)?;
     let (input, first_condition) = single_condition(input)?;
 
+    // Followed by 0 or more AND/OR conditions
     match many0(alt((and_condition, or_condition)))(input) {
-        Ok((input, a)) => {
-            Ok((input, first_condition))
+        Ok((input, more_conditions)) => {
+            if more_conditions.is_empty() {
+                Ok((input, first_condition))
+            } else {
+                Ok((input, combine_logical_conditions(first_condition, more_conditions)))
+            }
         },
         Err(_) => {
             warn!("Unable to parse additional where condition {}", input);
@@ -28,27 +33,38 @@ pub(crate) fn where_parser(input: &str) -> IResult<&str, Condition> {
     }
 }
 
+fn combine_logical_conditions(first: Condition, logical_conditions: Vec<(LogicalOperator, Condition)>) -> Condition {
+    let mut current = first;
+    for (logical_op, next_cond) in logical_conditions {
+        current = Condition::from_logical(&logical_op, current, next_cond);
+    }
+
+    current
+}
+
 fn single_condition(input: &str) -> IResult<&str, Condition> {
-    alt((where_spending,
+    let (input, condition) = alt((where_spending,
          where_income,
          where_amount,
          where_description,
          where_date,
-         where_label))(input)
+         where_label))(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, condition))
 }
 
 /// AND single_condition
-fn and_condition(input: &str) -> IResult<&str, Condition> {
+fn and_condition(input: &str) -> IResult<&str, (LogicalOperator, Condition)> {
     let (input, _) = tag_no_case("AND")(input)?;
     let (input, _) = multispace1(input)?;
-    single_condition(input)
+    single_condition(input).map(|(input, c)|(input, (LogicalOperator::And, c)))
 }
 
 /// OR single_condition
-fn or_condition(input: &str) -> IResult<&str, Condition> {
+fn or_condition(input: &str) -> IResult<&str, (LogicalOperator, Condition)> {
     let (input, _) = tag_no_case("OR")(input)?;
     let (input, _) = multispace1(input)?;
-    single_condition(input)
+    single_condition(input).map(|(input, c)|(input, (LogicalOperator::Or, c)))
 }
 
 /// spending > 100.0
@@ -218,7 +234,7 @@ mod tests {
 
         let query = "where desc  match 'abc'";
         let result = where_parser(query);
-        assert_eq!(result, Ok(("", Condition::Description(Operator::Match, "'abc'".into()))));
+        assert_eq!(result, Ok(("", Condition::Description(Operator::Match, "abc".into()))));
 
         let query = "where description like 'abc'";
         let result = where_parser(query);
@@ -242,5 +258,25 @@ mod tests {
         let query = "where label = 'abc, def'";
         let result = where_parser(query);
         assert_eq!(result, Ok(("", Condition::Label(Operator::Eq, "abc, def".into()))));
+
+
+        let query = "WHERE desc like 'abc' AND spending > 1000";
+        let result = where_parser(query).unwrap().1;
+        assert_eq!(result, Condition::And(Box::new((
+            Condition::Description(Operator::Match, "abc".into()),
+            Condition::Spending(Operator::Gt, 1000.0)
+        ))));
+
+        let query = "WHERE desc like 'abc' AND spending > 1000 OR income < 30";
+        let result = where_parser(query).unwrap().1;
+        assert_eq!(result, Condition::Or(
+            Box::new((
+                Condition::And(Box::new((
+                    Condition::Description(Operator::Match, "abc".into()),
+                    Condition::Spending(Operator::Gt, 1000.0)
+                ))),
+                Condition::Income(Operator::Lt, 30.0))
+            ))
+        );
     }
 }

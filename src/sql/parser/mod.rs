@@ -40,8 +40,17 @@ pub(crate) enum Condition {
     /// Start date(inclusive) and end date(exclusive) for the period
     Date(Operator, Range<NaiveDate>),
     Label(Operator, String),
-    And(Box<Condition>),
-    Or(Box<Condition>),
+    And(Box<(Condition, Condition)>),
+    Or(Box<(Condition, Condition)>),
+}
+
+impl Condition {
+    pub(crate) fn from_logical(op: &LogicalOperator, cond1: Condition, cond2: Condition) -> Condition {
+        match op {
+            LogicalOperator::And => Condition::And(Box::new((cond1, cond2))),
+            LogicalOperator::Or => Condition::Or(Box::new((cond1, cond2)))
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
