@@ -17,8 +17,8 @@ pub(crate) enum Statement {
     Export(String),
     /// IMPORT account FROM file_path
     Import(String, String, bool, bool),
-    /// SELECT statement
-    Select(Projection, Option<Condition>),
+    /// SELECT statement (projection, account, where clause)
+    Select(Projection, Option<String>, Option<Condition>),
     UpdateLabel(String, Option<Condition>),
 }
 
