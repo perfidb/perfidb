@@ -2,7 +2,7 @@ mod query;
 mod insert;
 mod util;
 mod copy;
-mod parser;
+pub mod parser;
 
 use log::{info, warn};
 use sqlparser::ast::{Expr, Statement, TableFactor, Value, Function, FunctionArg, FunctionArgExpr};
@@ -25,6 +25,10 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 copy::execute_import(db, &account, &file_path, inverse_amount, dryrun);
                 return Ok(())
             },
+            parser::Statement::Select(projection, from, condition) => {
+                query::select::run_select(db, projection, from, condition);
+                return Ok(())
+            }
             _ => ()
         }
     }

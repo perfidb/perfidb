@@ -93,6 +93,8 @@ fn main() {
                     let pattern :&[_] = &[' ', ';'];
                     let sql = sql.trim_matches(pattern).to_string();
 
+                    println!("{sql}");
+
                     let result = parse_and_run_sql(&mut db, sql, auto_label_rules_file.as_str());
                     if let Err(err) = result {
                         println!("{}", err);

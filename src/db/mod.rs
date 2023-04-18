@@ -10,6 +10,7 @@ use std::path::Path;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use log::info;
+use rustyline::ConditionalEventHandler;
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::{BinaryOperator, Expr};
 use sqlparser::ast::Expr::Identifier;
@@ -17,7 +18,10 @@ use crate::common::ResultError;
 
 use crate::csv_reader::Record;
 use minhash::StringMinHash;
+use sql::parser::Condition;
 use crate::db::search::SearchIndex;
+use crate::sql;
+use crate::sql::parser::{Operator, Projection};
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
@@ -373,6 +377,72 @@ impl Database {
             _ => HashSet::new()
         }
     }
+
+    /// Filter transactions based on the given SQL where clause.
+    /// Returns the set of transaction ids after applying the filter.
+    fn filter_transactions_new(&self, transactions: &HashSet<u32>, condition: Condition) -> HashSet<u32> {
+        let get_amount = |id| self.transactions.get(id).unwrap().amount;
+
+        match condition {
+            Condition::Spending(op, spending) => {
+                let amount_limit = -spending;
+                match op {
+                    Operator::Gt => transactions.iter().filter(|id| get_amount(id) < amount_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::GtEq => transactions.iter().filter(|id| get_amount(id) <= amount_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::Lt => transactions.iter().filter(|id| {
+                        let amount = get_amount(id);
+                        amount > amount_limit && amount <= 0.0
+                    }).cloned().collect::<HashSet<u32>>(),
+                    Operator::LtEq => transactions.iter().filter(|id| {
+                        let amount = get_amount(id);
+                        amount >= amount_limit && amount <= 0.0
+                    }).cloned().collect::<HashSet<u32>>(),
+                    Operator::Eq => transactions.iter().filter(|id| get_amount(id) == amount_limit).cloned().collect::<HashSet<u32>>(),
+                    _ => HashSet::new(),
+                }
+            }
+
+            Condition::And(sub_conditions) => {
+                let c1_result = self.filter_transactions_new(transactions, (*sub_conditions).0);
+                let c2_result = self.filter_transactions_new(transactions, (*sub_conditions).1);
+                c1_result.intersection(&c2_result).cloned().collect()
+            }
+
+            Condition::Or(sub_conditions) => {
+                let c1_result = self.filter_transactions_new(transactions, (*sub_conditions).0);
+                let c2_result = self.filter_transactions_new(transactions, (*sub_conditions).1);
+                c1_result.union(&c2_result).cloned().collect()
+            }
+
+            _ => HashSet::new()
+        }
+    }
+
+    /// The new query implementation
+    pub(crate) fn query_new(&mut self, from: Option<String>, condition: Option<Condition>) -> Vec<Transaction> {
+        let mut trans :HashSet<u32> = match from {
+            None => self.transactions.keys().cloned().collect::<HashSet<u32>>(),
+            Some(account) => self.transactions.values().filter(|t| account == t.account).map(|t| t.id).collect()
+        };
+
+        if let Some(condition) = condition {
+            trans = self.filter_transactions_new(&trans, condition);
+        }
+
+        let mut trans :Vec<&TransactionRecord> = trans.iter().map(|id| self.transactions.get(id).unwrap()).collect();
+        trans.sort_by(|a, b| {
+            a.date.partial_cmp(&b.date).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
+        });
+
+        let results :Vec<Transaction> = trans.iter().map(|t| self.to_transaction(t)).collect();
+        if !results.is_empty() {
+            self.last_query_results = Some(results.iter().map(|t|t.id).collect());
+        }
+
+        results
+    }
+
+
 
 
     /// Current implementation is quite bad. Hope we can use a better way to do this in Rust

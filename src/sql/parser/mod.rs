@@ -85,7 +85,7 @@ impl From<&str> for Operator {
 }
 
 pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
-    let result = alt((export::export, import::import))(query);
+    let result = alt((export::export, import::import, select::select))(query);
     match result {
         Ok((_, statement)) => Ok(statement),
         Err(e) => Err(Error::new(e.to_string()))
