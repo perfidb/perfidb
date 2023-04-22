@@ -1,11 +1,22 @@
 use comfy_table::{Cell, CellAlignment, Table, TableComponent};
+use crate::config::Config;
 use crate::db::Database;
 use crate::sql::parser::{Condition, Projection};
 use crate::sql::query::{format_amount, format_date, set_cell_style};
+use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
-pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>) {
-    let transactions = db.query_new(from, condition);
+pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, auto_label_rules_file: &str) {
+    let mut transactions = db.query_new(from, condition);
+
+    if let Projection::Auto = projection {
+        let tagger = Tagger::new(&Config::load_from_file(auto_label_rules_file));
+        for t in transactions.iter_mut() {
+            let new_labels = tagger.label(t);
+            t.labels = new_labels;
+        }
+    }
+
     process_projection(&projection, &transactions)
 }
 

@@ -2,7 +2,6 @@ pub(crate) mod select;
 
 use std::collections::HashMap;
 use chrono::NaiveDateTime;
-use clap::builder::TypedValueParser;
 use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
 use log::{warn};
 use sqlparser::ast::{Expr, Query, SelectItem, SetExpr, TableFactor, Value};

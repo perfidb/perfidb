@@ -402,6 +402,57 @@ impl Database {
                 }
             }
 
+            Condition::Income(op, income_limit) => {
+                match op {
+                    Operator::Gt => transactions.iter().filter(|id| get_amount(id) > income_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::GtEq => transactions.iter().filter(|id| get_amount(id) >= income_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::Lt => transactions.iter().filter(|id| {
+                        let amount = get_amount(id);
+                        amount >= 0.0 && amount < income_limit
+                    }).cloned().collect::<HashSet<u32>>(),
+                    Operator::LtEq => transactions.iter().filter(|id| {
+                        let amount = get_amount(id);
+                        amount >= 0.0 && amount <= income_limit
+                    }).cloned().collect::<HashSet<u32>>(),
+                    Operator::Eq => transactions.iter().filter(|id| get_amount(id) == income_limit).cloned().collect::<HashSet<u32>>(),
+                    _ => HashSet::new(),
+                }
+            }
+
+            Condition::Amount(op, amount_limit) => {
+                match op {
+                    Operator::Gt => transactions.iter().filter(|id| get_amount(id) > amount_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::GtEq => transactions.iter().filter(|id| get_amount(id) >= amount_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::Lt => transactions.iter().filter(|id| get_amount(id) < amount_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::LtEq => transactions.iter().filter(|id| get_amount(id) <= amount_limit).cloned().collect::<HashSet<u32>>(),
+                    Operator::Eq => transactions.iter().filter(|id| get_amount(id) == amount_limit).cloned().collect::<HashSet<u32>>(),
+                    _ => HashSet::new(),
+                }
+            }
+
+            // Assuming op is 'Match' for now
+            Condition::Description(_op, keyword) => {
+                self.search_index.search(&keyword)
+            }
+
+            // Assuming op is '='
+            Condition::Label(_op, label) => {
+                match self.label_minhash.lookup_by_string(label) {
+                    Some(label_id) => transactions.iter().filter(|id| self.transactions.get(id).unwrap().labels.contains(&label_id)).cloned().collect::<HashSet<u32>>(),
+                    None => HashSet::new()
+                }
+            }
+
+            Condition::Date(_op, date_range) => {
+                let mut trans_in_date_range = HashSet::<u32>::new();
+                for (_, trans_ids) in self.date_index.range(date_range) {
+                    for id in trans_ids {
+                        trans_in_date_range.insert(*id);
+                    }
+                }
+                trans_in_date_range
+            }
+
             Condition::And(sub_conditions) => {
                 let c1_result = self.filter_transactions_new(transactions, (*sub_conditions).0);
                 let c2_result = self.filter_transactions_new(transactions, (*sub_conditions).1);
@@ -413,8 +464,6 @@ impl Database {
                 let c2_result = self.filter_transactions_new(transactions, (*sub_conditions).1);
                 c1_result.union(&c2_result).cloned().collect()
             }
-
-            _ => HashSet::new()
         }
     }
 

@@ -26,7 +26,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 return Ok(())
             },
             parser::Statement::Select(projection, from, condition) => {
-                query::select::run_select(db, projection, from, condition);
+                query::select::run_select(db, projection, from, condition, auto_label_rules_file);
                 return Ok(())
             }
             _ => ()

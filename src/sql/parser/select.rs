@@ -1,5 +1,5 @@
 use nom::branch::alt;
-use nom::bytes::complete::{tag_no_case};
+use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::opt;
 use nom::{IResult};
@@ -14,16 +14,10 @@ use crate::sql::parser::condition::where_parser;
 pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("SELECT")(input)?;
     let (input, _) =  multispace1(input)?;
-    alt((select_star, select_count))(input)
-}
-
-/// SELECT *
-pub(crate) fn select_star(input: &str) -> IResult<&str, Statement> {
-    let (input, _) = tag_no_case("*")(input)?;
-    let (input, _) = multispace0(input)?;
+    let (input, projection) = alt((proj_star, proj_sum, proj_count, proj_auto))(input)?;
     let (input, account) = opt(from_account)(input)?;
     let (input, condition) = opt(where_parser)(input)?;
-    Ok((input, Statement::Select(Projection::Star, account, condition)))
+    Ok((input, Statement::Select(projection, account, condition)))
 }
 
 /// FROM account
@@ -35,15 +29,33 @@ pub(crate) fn from_account(input: &str) -> IResult<&str, String> {
     Ok((input, account.into()))
 }
 
-/// SELECT COUNT(*)
-pub(crate) fn select_count(input: &str) -> IResult<&str, Statement> {
-    let (input, _) = tag_no_case("COUNT(*)")(input)?;
+/// Normal projection, i.e. SELECT *
+fn proj_star(input: &str) -> IResult<&str, Projection> {
+    let (input, _) = tag("*")(input)?;
     let (input, _) = multispace0(input)?;
-    let (input, account) = opt(from_account)(input)?;
-    let (input, condition) = opt(where_parser)(input)?;
-    Ok((input, Statement::Select(Projection::Count, account, condition)))
+    Ok((input, Projection::Star))
 }
 
+/// SUM(*)
+fn proj_sum(input: &str) -> IResult<&str, Projection> {
+    let (input, _) = tag_no_case("SUM(*)")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Projection::Sum))
+}
+
+/// SUM(*)
+fn proj_count(input: &str) -> IResult<&str, Projection> {
+    let (input, _) = tag_no_case("COUNT(*)")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Projection::Count))
+}
+
+/// AUTO(*)
+fn proj_auto(input: &str) -> IResult<&str, Projection> {
+    let (input, _) = tag_no_case("AUTO(*)")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Projection::Auto))
+}
 
 #[cfg(test)]
 mod tests {

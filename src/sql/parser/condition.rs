@@ -170,9 +170,8 @@ fn parse_date_range(date_str: &str) -> IResult<&str, Range<NaiveDate>> {
         }
     }
 
-    return Err(nom::Err::Failure(Error::new(date_str, ErrorKind::Fail)));
+    Err(nom::Err::Failure(Error::new(date_str, ErrorKind::Fail)))
 }
-
 
 
 /// label = ...
