@@ -25,10 +25,16 @@ pub(crate) enum Statement {
 #[derive(Debug, PartialEq)]
 pub(crate) enum Projection {
     Star,
-    Sum,
-    Count,
+    Sum(GroupBy),
+    Count(GroupBy),
     Auto,
     Id(usize),
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum GroupBy {
+    None,
+    Label,
 }
 
 #[derive(Debug, PartialEq)]

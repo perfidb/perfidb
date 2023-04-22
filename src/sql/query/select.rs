@@ -22,10 +22,15 @@ pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option
 
 /// Print outputs based on query projection, e.g. SELECT *, SELECT SUM(*), etc
 fn process_projection(projection: &Projection, transactions: &[Transaction]) {
-    // if group_by.len() > 1 {
-    //     warn!("GROUP BY more than one column is currently not supported");
-    //     return;
-    // }
+// TODO: projection
+//     if group_by.len() == 1 {
+//         if let Expr::Identifier(ident) = &group_by[0] {
+//             if ident.value.to_ascii_lowercase() == "tags" {
+//                 group_by_tags(transactions, &mut table);
+//             }
+//         }
+//     }
+
 
     let mut table = Table::new();
     table.remove_style(TableComponent::HorizontalLines);
@@ -52,8 +57,8 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
         // SELECT SUM(*) FROM
         // SELECT COUNT(*) FROM
-        Projection::Sum => is_sum = true,
-        Projection::Count => is_count = true,
+        Projection::Sum(_) => is_sum = true,
+        Projection::Count(_) => is_count = true,
         Projection::Auto => {
             is_normal_select = true;
             is_auto_labelling = true;

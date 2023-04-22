@@ -328,23 +328,11 @@ impl Database {
         info!("{:?}", where_clause);
 
         match where_clause {
-            Expr::BinaryOp{ left, op: BinaryOperator::Eq, right } => {
-                let left: &Expr = left;
-                let right: &Expr = right;
-
-                filter::handle_equals((*left).clone(), (*right).clone(), self, transactions)
-            },
-
             Expr::BinaryOp { left, op: BinaryOperator::NotEq, right } => {
                 let left: &Expr = left;
                 let right: &Expr = right;
 
                 filter::handle_not_equal((*left).clone(), (*right).clone(), self, transactions)
-            },
-
-            // If it is 'LIKE' operator, we assume it's  description LIKE '...', so we don't check left
-            Expr::Like { pattern, ..} => {
-                filter::handle_like((**pattern).clone(), self)
             },
 
             // label IS NULL
@@ -369,48 +357,6 @@ impl Database {
                     }
                 }
                 HashSet::new()
-            },
-
-            // Process left > right, assumes left is 'amount'
-            Expr::BinaryOp{ left: _, op: BinaryOperator::Gt, right} => {
-                // TODO: handle UnaryOp {op: Minus, expr: Value(Number("11.99", false))} properly
-                let s: String = right.to_string().replace(' ', "");
-                let amount_limit = s.parse::<f32>().unwrap();
-
-                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount > amount_limit).cloned().collect::<HashSet<u32>>()
-            },
-            Expr::BinaryOp{ left: _, op: BinaryOperator::GtEq, right} => {
-                let s: String = right.to_string().replace(' ', "");
-                let amount_limit = s.parse::<f32>().unwrap();
-
-                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount >= amount_limit).cloned().collect::<HashSet<u32>>()
-            },
-
-
-            // Process left < right, assumes left is 'amount'
-            Expr::BinaryOp{ left: _, op: BinaryOperator::Lt, right} => {
-                let s: String = right.to_string().replace(' ', "");
-                let amount_limit = s.parse::<f32>().unwrap();
-
-                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount < amount_limit).cloned().collect::<HashSet<u32>>()
-            },
-            Expr::BinaryOp{ left: _, op: BinaryOperator::LtEq, right} => {
-                let s: String = right.to_string().replace(' ', "");
-                let amount_limit = s.parse::<f32>().unwrap();
-
-                transactions.iter().filter(|id| self.transactions.get(id).unwrap().amount <= amount_limit).cloned().collect::<HashSet<u32>>()
-            },
-
-            Expr::BinaryOp{ left, op: BinaryOperator::And, right} => {
-                let left_result = self.filter_transactions(transactions, left);
-                let right_result = self.filter_transactions(transactions, right);
-                left_result.intersection(&right_result).cloned().collect()
-            },
-
-            Expr::BinaryOp{ left, op: BinaryOperator::Or, right} => {
-                let left_result = self.filter_transactions(transactions, left);
-                let right_result = self.filter_transactions(transactions, right);
-                left_result.union(&right_result).cloned().collect()
             },
 
             Expr::Nested(n) => {
@@ -535,36 +481,6 @@ impl Database {
         });
 
         let results :Vec<Transaction> = trans.iter().map(|t| self.to_transaction(t)).collect();
-        if !results.is_empty() {
-            self.last_query_results = Some(results.iter().map(|t|t.id).collect());
-        }
-
-        results
-    }
-
-
-
-
-    /// Current implementation is quite bad. Hope we can use a better way to do this in Rust
-    pub(crate) fn query(&mut self, account: &str, where_clause: Option<Expr>) -> Vec<Transaction> {
-        let mut transactions = if account.to_ascii_lowercase() == ALL_ACCOUNTS {
-            self.transactions.keys().cloned().collect::<HashSet<u32>>()
-        } else {
-            self.transactions.values().filter(|t| account == t.account).map(|t| t.id).collect::<HashSet<u32>>()
-        };
-
-        if let Some(where_clause) = where_clause {
-            transactions = self.filter_transactions(&transactions, &where_clause);
-        }
-
-        let mut transactions = transactions.iter().map(|id| self.transactions.get(id).unwrap()).collect::<Vec<&TransactionRecord>>();
-
-        transactions.sort_by(|a, b| {
-            a.date.partial_cmp(&b.date).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
-        });
-
-        let results :Vec<Transaction> = transactions.iter().map(|t| self.to_transaction(t)).collect();
-
         if !results.is_empty() {
             self.last_query_results = Some(results.iter().map(|t|t.id).collect());
         }

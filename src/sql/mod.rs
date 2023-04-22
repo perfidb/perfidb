@@ -9,7 +9,6 @@ use sqlparser::ast::{Expr, Statement, TableFactor, Value, Function, FunctionArg,
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::ParserError;
 use crate::{Config, Database};
-use crate::sql::query::run_query;
 use crate::tagger::Tagger;
 
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), ParserError> {
@@ -54,36 +53,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
         Ok(ast) => {
             for statement in ast {
                 match statement {
-                    Statement::Query(query) => {
-                        run_query(query, db, auto_label_rules_file);
-                    },
-
                     Statement::Insert { table_name, source, .. } => {
                         insert::execute_insert(db, table_name, source);
-                    },
-
-                    Statement::Update { assignments, selection: Some(where_clause), .. } => {
-                        for assignment in assignments {
-                            if assignment.id[0].value == "label" {
-                                match assignment.value {
-                                    Expr::Value(Value::SingleQuotedString(labels)) => {
-                                        let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).collect();
-                                        db.set_labels_for_multiple_transactions(&where_clause, &labels);
-                                    },
-
-                                    Expr::Function(func) => {
-                                        // SET label = auto()
-                                        if func.name.0[0].value.to_ascii_lowercase() == "auto" {
-                                            let auto_labeller = Tagger::new(&Config::load_from_file(auto_label_rules_file));
-                                            db.auto_label(&auto_labeller, &where_clause);
-                                        }
-                                    }
-                                    _ => {
-                                        warn!("\"{}\" is not a supported label value or function. Try:  SET label = 'grocery'", assignment.value);
-                                    }
-                                }
-                            }
-                        }
                     },
 
                     // If no 'FROM' clause, we assume updating on one transaction and that transaction id is table name

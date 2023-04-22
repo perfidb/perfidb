@@ -4,7 +4,7 @@ use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::opt;
 use nom::{IResult};
 
-use crate::sql::parser::{non_space, Projection, Statement};
+use crate::sql::parser::{GroupBy, non_space, Projection, Statement};
 use crate::sql::parser::condition::where_parser;
 
 /// Match `SELECT` statements. This is still working-in-progress. We are trying to migrate
@@ -40,14 +40,14 @@ fn proj_star(input: &str) -> IResult<&str, Projection> {
 fn proj_sum(input: &str) -> IResult<&str, Projection> {
     let (input, _) = tag_no_case("SUM(*)")(input)?;
     let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Sum))
+    Ok((input, Projection::Sum(GroupBy::None)))
 }
 
 /// SUM(*)
 fn proj_count(input: &str) -> IResult<&str, Projection> {
     let (input, _) = tag_no_case("COUNT(*)")(input)?;
     let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Count))
+    Ok((input, Projection::Count(GroupBy::None)))
 }
 
 /// AUTO(*)
@@ -60,7 +60,7 @@ fn proj_auto(input: &str) -> IResult<&str, Projection> {
 #[cfg(test)]
 mod tests {
     use crate::sql::parser::select::{select};
-    use crate::sql::parser::{Condition, Operator, Projection, Statement};
+    use crate::sql::parser::{Condition, GroupBy, Operator, Projection, Statement};
 
     #[test]
     fn test() {
@@ -75,7 +75,7 @@ mod tests {
 
         let query = "select  count(*)";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Count, None, None))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Count(GroupBy::None), None, None))));
 
         let query = "select * from cba where spending > 100.0";
         let result = select(query);
