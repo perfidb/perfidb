@@ -247,6 +247,31 @@ impl Database {
         self.save();
     }
 
+    pub(crate) fn set_labels_for_multiple_transactions_new(&mut self, labels: &[&str], condition: Option<Condition>) {
+        let mut transactions = HashSet::<u32>::new();
+        for trans_id in self.transactions.keys() {
+            transactions.insert(*trans_id);
+        }
+
+        if let Some(condition) = condition {
+            transactions = self.filter_transactions_new(&transactions, condition);
+        }
+
+        for label in labels {
+            let label_id = self.label_minhash.put(label.to_string());
+
+            for trans_id in &transactions {
+                let transaction = self.transactions.get_mut(trans_id).unwrap();
+                if !transaction.labels.contains(&label_id) {
+                    transaction.labels.push(label_id);
+                    self.label_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
+                }
+            }
+        }
+
+        self.save();
+    }
+
     pub(crate) fn auto_label(&mut self, auto_labeller: &Tagger, where_clause: &Expr) {
         let mut transactions = HashSet::<u32>::new();
         for trans_id in self.transactions.keys() {
@@ -254,6 +279,24 @@ impl Database {
         }
 
         transactions = self.filter_transactions(&transactions, where_clause);
+        for trans_id in &transactions {
+            let t = self.transactions.get(trans_id).unwrap();
+            let labels = auto_labeller.label(&self.to_transaction(t));
+            if !labels.is_empty() {
+                self.add_labels(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+            }
+        }
+    }
+
+    pub(crate) fn auto_label_new(&mut self, auto_labeller: &Tagger, condition: Option<Condition>) {
+        let mut transactions = HashSet::<u32>::new();
+        for trans_id in self.transactions.keys() {
+            transactions.insert(*trans_id);
+        }
+
+        if let Some(condition) = condition {
+            transactions = self.filter_transactions_new(&transactions, condition);
+        }
         for trans_id in &transactions {
             let t = self.transactions.get(trans_id).unwrap();
             let labels = auto_labeller.label(&self.to_transaction(t));
@@ -384,6 +427,14 @@ impl Database {
         let get_amount = |id| self.transactions.get(id).unwrap().amount;
 
         match condition {
+            Condition::Id(id) => {
+                let mut trans = HashSet::new();
+                if self.search_by_id(id).is_some() {
+                    trans.insert(id);
+                }
+                trans
+            }
+
             Condition::Spending(op, spending) => {
                 let amount_limit = -spending;
                 match op {

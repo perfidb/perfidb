@@ -20,16 +20,26 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
             parser::Statement::Export(file_path) => {
                 copy::execute_export_db(db, &file_path);
                 return Ok(())
-            },
+            }
             parser::Statement::Import(account, file_path, inverse_amount, dryrun) => {
                 copy::execute_import(db, &account, &file_path, inverse_amount, dryrun);
                 return Ok(())
-            },
+            }
             parser::Statement::Select(projection, from, condition) => {
                 query::select::run_select(db, projection, from, condition, auto_label_rules_file);
                 return Ok(())
             }
-            _ => ()
+            parser::Statement::UpdateLabel(labels, condition) => {
+                if labels.to_ascii_lowercase() == "auto()" {
+                    let auto_labeller = Tagger::new(&Config::load_from_file(auto_label_rules_file));
+                    db.auto_label_new(&auto_labeller, condition);
+                } else {
+                    let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).collect();
+                    // TODO: find a way to remove old labels
+                    db.set_labels_for_multiple_transactions_new(&labels, condition);
+                }
+                return Ok(())
+            }
         }
     }
 

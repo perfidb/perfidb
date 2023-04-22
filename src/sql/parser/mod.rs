@@ -33,6 +33,7 @@ pub(crate) enum Projection {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Condition {
+    Id(u32),
     Spending(Operator, f32),
     Income(Operator, f32),
     Amount(Operator, f32),
@@ -85,7 +86,7 @@ impl From<&str> for Operator {
 }
 
 pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
-    let result = alt((export::export, import::import, select::select))(query);
+    let result = alt((export::export, import::import, select::select, update::update))(query);
     match result {
         Ok((_, statement)) => Ok(statement),
         Err(e) => Err(Error::new(e.to_string()))

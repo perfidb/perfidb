@@ -2,8 +2,8 @@ use std::ops::{Add, Range};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use log::warn;
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag_no_case, take_till};
-use nom::character::complete::{char, multispace0, multispace1};
+use nom::bytes::complete::{is_not, tag, tag_no_case, take_till};
+use nom::character::complete::{char, multispace0, multispace1, u32};
 use nom::error::{Error, ErrorKind};
 use nom::{AsChar, InputTakeAtPosition, IResult};
 use nom::multi::many0;
@@ -43,12 +43,14 @@ fn combine_logical_conditions(first: Condition, logical_conditions: Vec<(Logical
 }
 
 fn single_condition(input: &str) -> IResult<&str, Condition> {
-    let (input, condition) = alt((where_spending,
-         where_income,
-         where_amount,
-         where_description,
-         where_date,
-         where_label))(input)?;
+    let (input, condition) = alt((
+        where_id,
+        where_spending,
+        where_income,
+        where_amount,
+        where_description,
+        where_date,
+        where_label))(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, condition))
 }
@@ -65,6 +67,16 @@ fn or_condition(input: &str) -> IResult<&str, (LogicalOperator, Condition)> {
     let (input, _) = tag_no_case("OR")(input)?;
     let (input, _) = multispace1(input)?;
     single_condition(input).map(|(input, c)|(input, (LogicalOperator::Or, c)))
+}
+
+/// id = 123
+fn where_id(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("id")(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag("=")(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, id) = u32(input)?;
+    Ok((input, Condition::Id(id)))
 }
 
 /// spending > 100.0
