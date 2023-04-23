@@ -73,7 +73,7 @@ fn main() {
                             if let Some(last_results) = &db.last_query_results {
                                 live_edit::live_label(last_results.clone(), &mut db).unwrap();
                             } else {
-                                info!("No recent query results");
+                                info!("No recent select results");
                             }
                             continue;
                         }

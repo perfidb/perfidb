@@ -1,4 +1,4 @@
-mod query;
+mod select;
 mod insert;
 mod util;
 mod copy;
@@ -25,7 +25,7 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 return Ok(())
             }
             parser::Statement::Select(projection, from, condition, group_by) => {
-                query::select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
+                select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
                 return Ok(())
             }
             parser::Statement::UpdateLabel(labels, condition) => {

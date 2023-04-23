@@ -28,8 +28,6 @@ use crate::transaction::Transaction;
 /// perfidb binary version
 const PERFIDB_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const ALL_ACCOUNTS: &str = "db";
-
 /// Internal representation of a transaction record in database
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct TransactionRecord {
@@ -272,22 +270,6 @@ impl Database {
         self.save();
     }
 
-    pub(crate) fn auto_label(&mut self, auto_labeller: &Tagger, where_clause: &Expr) {
-        let mut transactions = HashSet::<u32>::new();
-        for trans_id in self.transactions.keys() {
-            transactions.insert(*trans_id);
-        }
-
-        transactions = self.filter_transactions(&transactions, where_clause);
-        for trans_id in &transactions {
-            let t = self.transactions.get(trans_id).unwrap();
-            let labels = auto_labeller.label(&self.to_transaction(t));
-            if !labels.is_empty() {
-                self.add_labels(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
-            }
-        }
-    }
-
     pub(crate) fn auto_label_new(&mut self, auto_labeller: &Tagger, condition: Option<Condition>) {
         let mut transactions = HashSet::<u32>::new();
         for trans_id in self.transactions.keys() {
@@ -464,7 +446,7 @@ impl Database {
         }
     }
 
-    /// The new query implementation
+    /// The new select implementation
     pub(crate) fn query_new(&mut self, from: Option<String>, condition: Option<Condition>) -> Vec<Transaction> {
         let mut trans :HashSet<u32> = match from {
             None => self.transactions.keys().cloned().collect::<HashSet<u32>>(),

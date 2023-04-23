@@ -1,12 +1,14 @@
 use std::collections::HashMap;
-use comfy_table::{Cell, CellAlignment, Table, TableComponent};
+use chrono::NaiveDateTime;
+use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
+use log::{warn};
+use crate::transaction::Transaction;
 use crate::config::Config;
 use crate::db::Database;
 use crate::sql::parser::{Condition, GroupBy, Projection};
-use crate::sql::query::{format_amount, format_date, set_cell_style};
 use crate::tagger::Tagger;
-use crate::transaction::Transaction;
 
+/// Run an `SELECT` select
 pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, group_by: Option<GroupBy>, auto_label_rules_file: &str) {
     let mut transactions = db.query_new(from, condition);
 
@@ -21,7 +23,7 @@ pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option
     process_projection(&projection, group_by, &transactions)
 }
 
-/// Print outputs based on query projection, e.g. SELECT *, SELECT SUM(*), etc
+/// Print outputs based on select projection, e.g. SELECT *, SELECT SUM(*), etc
 fn process_projection(projection: &Projection, group_by: Option<GroupBy>, transactions: &[Transaction]) {
     let mut table = Table::new();
     table.remove_style(TableComponent::HorizontalLines);
@@ -107,4 +109,24 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
     }
 
     println!("{table}");
+}
+
+
+
+
+fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {
+    if is_tagging && !t.labels.is_empty() {
+        cell.fg(Color::Black).bg(Color::Green)
+    } else {
+        cell
+    }
+}
+
+/// Format $ amount
+fn format_amount(amount: f32) -> String {
+    format!("{amount:.2}")
+}
+
+fn format_date(date: NaiveDateTime) -> String {
+    date.format("%Y-%m-%d").to_string()
 }

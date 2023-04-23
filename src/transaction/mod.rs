@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Serializer;
 
-/// Hold transaction info returned from database query
+/// Hold transaction info returned from database select
 #[derive(Debug, Clone, serde::Serialize)]
 pub(crate) struct Transaction {
     #[serde(alias = "_perfidb_transaction_id", rename(serialize = "_perfidb_transaction_id"))]
