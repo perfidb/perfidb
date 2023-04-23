@@ -1,14 +1,14 @@
+use std::fmt::format;
 use std::ops::{Add, Range};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use log::warn;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, tag_no_case, take_till};
-use nom::character::complete::{char, multispace0, multispace1, u32};
+use nom::character::complete::{char, digit1, multispace0, multispace1, u32};
 use nom::error::{Error, ErrorKind};
 use nom::{AsChar, InputTakeAtPosition, IResult};
 use nom::multi::many0;
 use nom::sequence::delimited;
-use regex::Regex;
 use crate::sql::parser::{Condition, LogicalOperator, Operator};
 
 /// WHERE ...
@@ -137,54 +137,62 @@ fn where_date(input: &str) -> IResult<&str, Condition> {
     let (input, _) = tag_no_case("date")(input)?;
     let (input, _) = multispace1(input)?;
     let (input, operator) = tag_eq_operator(input)?;
-    let (input, date_range) = parse_date_range(input)?;
-
+    let (input, date_range) = alt((yyyy_mm_dd, yyyy_mm, single_month_int))(input)?;
+    let (input, _) = multispace0(input)?;
     Ok((input, Condition::Date(operator, date_range)))
 }
 
-fn parse_date_range(date_str: &str) -> IResult<&str, Range<NaiveDate>> {
-    // if month
-    if let Ok(month) = date_str.parse::<u32>() {
-        if (1..=12).contains(&month) {
-            let today = Utc::now().naive_utc().date();
-            let mut year = today.year();
-            if month >= today.month() {
-                year -= 1;
-            }
+fn yyyy_mm_dd(input: &str) -> IResult<&str, Range<NaiveDate>> {
+    let (input, year) = digit1(input)?;
+    let (input, _) = tag("-")(input)?;
+    let (input, month) = digit1(input)?;
+    let (input, _) = tag("-")(input)?;
+    let (input, day) = digit1(input)?;
 
-            let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-            let next_month = if month == 12 { 1 } else { month + 1 };
-            let next_month_year = if month == 12 { year + 1 } else { year };
-            let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
-
-            return Ok(("", first_day..first_day_next_month));
-        }
-    } else {
-        // Handle date format '2022-09-03'
-        let yyyy_mm_dd = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
-        if yyyy_mm_dd.is_match(date_str) {
-            let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").unwrap();
-            return Ok(("", date..date.add(Duration::days(1))));
-        }
-
-        let yyyy_mm = Regex::new(r"^\d{4}-\d{2}$").unwrap();
-        if yyyy_mm.is_match(date_str) {
-            let splitted: Vec<&str> = date_str.split('-').collect();
-            let year = splitted[0].to_string().parse::<i32>().unwrap();
-            let month = splitted[1].to_string().parse::<u32>().unwrap();
-
-            let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-            let next_month = if month == 12 { 1 } else { month + 1 };
-            let next_month_year = if month == 12 { year + 1 } else { year };
-            let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
-
-            return Ok(("", first_day..first_day_next_month));
-        }
+    let date_str = format!("{year}-{month}-{day}");
+    let date = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d");
+    match date {
+        Ok(date) => Ok((input, date..date.add(Duration::days(1)))),
+        Err(e) => Err(nom::Err::Failure(Error::new(input, ErrorKind::Fail)))
     }
-
-    Err(nom::Err::Failure(Error::new(date_str, ErrorKind::Fail)))
 }
 
+fn yyyy_mm(input: &str) -> IResult<&str, Range<NaiveDate>> {
+    let (input, year) = digit1(input)?;
+    let (input, _) = tag("-")(input)?;
+    let (input, month) = digit1(input)?;
+
+    let year = year.to_string().parse::<i32>().unwrap();
+    let month = month.to_string().parse::<u32>().unwrap();
+
+    let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+    let next_month = if month == 12 { 1 } else { month + 1 };
+    let next_month_year = if month == 12 { year + 1 } else { year };
+    let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
+
+    Ok((input, first_day..first_day_next_month))
+}
+
+fn single_month_int(input: &str) -> IResult<&str, Range<NaiveDate>> {
+    let (input, month) = u32(input)?;
+    let mut month = month % 12;
+    if month == 0 {
+        month = 12;
+    }
+
+    let today = Utc::now().naive_utc().date();
+    let mut year = today.year();
+    if month >= today.month() {
+        year -= 1;
+    }
+
+    let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+    let next_month = if month == 12 { 1 } else { month + 1 };
+    let next_month_year = if month == 12 { year + 1 } else { year };
+    let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
+
+    Ok((input, first_day..first_day_next_month))
+}
 
 /// label = ...   label IS NULL    label IS NOT NULL
 fn where_label(input: &str) -> IResult<&str, Condition> {

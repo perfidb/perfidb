@@ -63,12 +63,12 @@ EXPORT amex TO './amex.csv'
 
 #### From all accounts
 ```sql
-SELECT * FROM db;
+SELECT *;
 ```
 
 #### From specific account
 ```sql
-SELECT * FROM bank_1;
+SELECT * FROM amex;
 ```
 
 #### Filters
@@ -76,13 +76,13 @@ SELECT * FROM bank_1;
 ```sql
 -- Filter by month, i.e. 7 means July. If current date has passed July it means July of current year,
 -- if current date is before end of July it means July of previous year.
-SELECT * FROM db WHERE date = 7;
+SELECT * WHERE date = 7;
 
 -- Filter by month
-SELECT * FROM db WHERE date = '2022-07';
+SELECT * WHERE date = 2022-07;
 
 -- Filter by date
-SELECT * FROM db WHERE date = '2022-07-31';
+SELECT * FROM db WHERE date = 2022-07-31;
 ```
 
 ##### Labels
@@ -90,18 +90,18 @@ SELECT * FROM db WHERE date = '2022-07-31';
 SELECT * FROM db WHERE label = 'grocery';
 
 -- Preview auto labelling results
-SELECT auto() FROM db WHERE date = '2022-07';
+SELECT auto() FROM db WHERE date = 2022-07;
 
 -- Apply auto labelling 
-UPDATE db SET label = auto() WHERE date = '2022-07';
+UPDATE SET label = auto() WHERE date = 2022-07;
 ```
 
 ##### Transaction ID
 ```sql
-SELECT * FROM db WHERE id = 1234;
+SELECT * WHERE id = 1234;
 
 -- or simply
-SELECT 1234 FROM db
+SELECT 1234;
 ```
 
 ### INSERT

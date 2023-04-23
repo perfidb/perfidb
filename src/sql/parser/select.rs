@@ -55,7 +55,7 @@ fn proj_count(input: &str) -> IResult<&str, Projection> {
 
 /// AUTO(*)
 fn proj_auto(input: &str) -> IResult<&str, Projection> {
-    let (input, _) = tag_no_case("AUTO(*)")(input)?;
+    let (input, _) = tag_no_case("AUTO()")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Projection::Auto))
 }
