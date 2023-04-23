@@ -3,13 +3,18 @@ mod export;
 mod select;
 mod update;
 mod condition;
+mod insert;
 
 use std::ops::Range;
 use chrono::NaiveDate;
+use log::warn;
 
-use nom::{InputTakeAtPosition, IResult};
+use nom::{AsChar, InputTakeAtPosition, IResult};
 use nom::branch::alt;
-use crate::common::Error;
+use nom::bytes::complete::tag;
+use nom::character::complete::{char, digit1, multispace0};
+use nom::error::{Error, ErrorKind, ParseError};
+use crate::csv_reader::Record;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Statement {
@@ -20,6 +25,9 @@ pub(crate) enum Statement {
     /// SELECT statement (projection, account, where clause, group by)
     Select(Projection, Option<String>, Option<Condition>, Option<GroupBy>),
     UpdateLabel(String, Option<Condition>),
+
+    /// INSERT INTO account VALUES (2022-05-20, 'description', -30.0, 'label1, label2'), (2022-05-21, 'description', -32.0)
+    Insert(Option<String>, Vec<Record>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -93,16 +101,55 @@ impl From<&str> for Operator {
     }
 }
 
-pub(crate) fn parse(query: &str) -> Result<Statement, Error> {
-    let result = alt((export::export, import::import, select::select, update::update))(query);
-    match result {
-        Ok((_, statement)) => Ok(statement),
-        Err(e) => Err(Error::new(e.to_string()))
-    }
+pub(crate) fn parse(query: &str) -> IResult<&str, Statement> {
+    alt((export::export, import::import, select::select, update::update, insert::parse_insert))(query)
 }
 
 pub(crate) fn non_space(input: &str) -> IResult<&str, &str> {
     input.split_at_position_complete(char::is_whitespace)
+}
+
+fn yyyy_mm_dd_date(input: &str) -> IResult<&str, NaiveDate> {
+    let original_input = input;
+    let (input, year) = digit1(input)?;
+    let (input, _) = tag("-")(input)?;
+    let (input, month) = digit1(input)?;
+    let (input, _) = tag("-")(input)?;
+    let (input, day) = digit1(input)?;
+
+    let date_str = format!("{year}-{month}-{day}");
+    let date = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d");
+    match date {
+        Ok(date) => Ok((input, date)),
+        Err(e) => {
+            warn!("{e:?}");
+            Err(nom::Err::Error(Error::new(original_input, ErrorKind::Fail)))
+        }
+    }
+}
+
+/// Eat a comma with optional leading and trailing whitespace
+fn comma(input: &str) -> IResult<&str, ()> {
+    let (input, _) = multispace0(input)?;
+    let (input, _) = char(',')(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, ()))
+}
+
+fn floating_point_num(input: &str) -> IResult<&str, f32> {
+    let original_input = input;
+    let (input, value) = input.split_at_position_complete(|c| {
+        let c = c.as_char();
+        !(c.is_dec_digit() || c == '.' || c == '-')
+    })?;
+
+    match value.parse::<f32>() {
+        Ok(value) => Ok((input, value)),
+        Err(e) => {
+            warn!("{e:?}");
+            Err(nom::Err::Error(nom::error::Error::new(original_input, ErrorKind::Fail)))
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,15 +1,13 @@
-use std::fmt::format;
 use std::ops::{Add, Range};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use log::warn;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, tag_no_case, take_till};
 use nom::character::complete::{char, digit1, multispace0, multispace1, u32};
-use nom::error::{Error, ErrorKind};
-use nom::{AsChar, InputTakeAtPosition, IResult};
+use nom::{InputTakeAtPosition, IResult};
 use nom::multi::many0;
 use nom::sequence::delimited;
-use crate::sql::parser::{Condition, LogicalOperator, Operator};
+use crate::sql::parser::{Condition, floating_point_num, LogicalOperator, Operator, yyyy_mm_dd_date};
 
 /// WHERE ...
 pub(crate) fn where_parser(input: &str) -> IResult<&str, Condition> {
@@ -86,7 +84,7 @@ fn where_spending(input: &str) -> IResult<&str, Condition> {
     let (input, compare_operator) = take_till(|c| c != '<' && c != '>' && c != '=')(input)?;
     let (input, _) = multispace0(input)?;
     let (input, value) = floating_point_num(input)?;
-    Ok((input, Condition::Spending(compare_operator.into(), value.parse::<f32>().unwrap())))
+    Ok((input, Condition::Spending(compare_operator.into(), value)))
 }
 
 /// income > 100.0
@@ -96,7 +94,7 @@ fn where_income(input: &str) -> IResult<&str, Condition> {
     let (input, compare_operator) = take_till(|c| c != '<' && c != '>' && c != '=')(input)?;
     let (input, _) = multispace0(input)?;
     let (input, value) = floating_point_num(input)?;
-    Ok((input, Condition::Income(compare_operator.into(), value.parse::<f32>().unwrap())))
+    Ok((input, Condition::Income(compare_operator.into(), value)))
 }
 
 /// amount < -100.0
@@ -106,7 +104,7 @@ fn where_amount(input: &str) -> IResult<&str, Condition> {
     let (input, compare_operator) = take_till(|c| c != '<' && c != '>' && c != '=')(input)?;
     let (input, _) = multispace0(input)?;
     let (input, value) = floating_point_num(input)?;
-    Ok((input, Condition::Amount(compare_operator.into(), value.parse::<f32>().unwrap())))
+    Ok((input, Condition::Amount(compare_operator.into(), value)))
 }
 
 /// description|desc =|like|match '...'
@@ -143,18 +141,8 @@ fn where_date(input: &str) -> IResult<&str, Condition> {
 }
 
 fn yyyy_mm_dd(input: &str) -> IResult<&str, Range<NaiveDate>> {
-    let (input, year) = digit1(input)?;
-    let (input, _) = tag("-")(input)?;
-    let (input, month) = digit1(input)?;
-    let (input, _) = tag("-")(input)?;
-    let (input, day) = digit1(input)?;
-
-    let date_str = format!("{year}-{month}-{day}");
-    let date = NaiveDate::parse_from_str(date_str.as_str(), "%Y-%m-%d");
-    match date {
-        Ok(date) => Ok((input, date..date.add(Duration::days(1)))),
-        Err(e) => Err(nom::Err::Failure(Error::new(input, ErrorKind::Fail)))
-    }
+    let (input, date) = yyyy_mm_dd_date(input)?;
+    Ok((input, date..date.add(Duration::days(1))))
 }
 
 fn yyyy_mm(input: &str) -> IResult<&str, Range<NaiveDate>> {
@@ -244,15 +232,6 @@ fn tag_match_operator(input: &str) -> IResult<&str, Operator> {
     let (input, _) = tag_no_case("match")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Operator::Match))
-}
-
-
-
-fn floating_point_num(input: &str) -> IResult<&str, &str> {
-    input.split_at_position_complete(|c| {
-        let c = c.as_char();
-        !(c.is_dec_digit() || c == '.' || c == '-')
-    })
 }
 
 

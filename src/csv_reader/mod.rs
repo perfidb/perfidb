@@ -10,6 +10,7 @@ use crate::csv_reader::column::ColumnInfo;
 mod column;
 
 /// A transaction record in csv file
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Record {
     pub(crate) id: Option<u32>,
     pub(crate) account: String,

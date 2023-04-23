@@ -673,7 +673,6 @@ dependencies = [
  "rustyline",
  "serde",
  "serde_json",
- "sqlparser",
  "toml",
  "walkdir",
 ]
@@ -920,15 +919,6 @@ name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
-
-[[package]]
-name = "sqlparser"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db67dc6ef36edb658196c3fef0464a80b53dbbc194a904e81f9bd4190f9ecc5b"
-dependencies = [
- "log",
-]
 
 [[package]]
 name = "str-buf"

@@ -80,19 +80,19 @@ mod tests {
     fn test() {
         let query = "select  * ";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, None))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, None, None))));
 
         let query = "SELECT * FROM amex-plat";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("amex-plat".into()), None))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("amex-plat".into()), None, None))));
 
 
         let query = "select  count(*)";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Count(GroupBy::None), None, None))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Count(GroupBy::None), None, None, None))));
 
         let query = "select * from cba where spending > 100.0";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("cba".into()), Some(Condition::Spending(Operator::Gt, 100.0))))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("cba".into()), Some(Condition::Spending(Operator::Gt, 100.0)), None))));
     }
 }
