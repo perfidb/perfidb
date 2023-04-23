@@ -1,8 +1,10 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{multispace0, multispace1};
+use nom::character::complete::{alpha1, multispace0, multispace1};
 use nom::combinator::opt;
 use nom::{IResult};
+use nom::Err::Error;
+use nom::error::ErrorKind;
 
 use crate::sql::parser::{GroupBy, non_space, Projection, Statement};
 use crate::sql::parser::condition::where_parser;
@@ -17,7 +19,8 @@ pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
     let (input, projection) = alt((proj_star, proj_sum, proj_count, proj_auto))(input)?;
     let (input, account) = opt(from_account)(input)?;
     let (input, condition) = opt(where_parser)(input)?;
-    Ok((input, Statement::Select(projection, account, condition)))
+    let (input, group_by) = opt(group_by)(input)?;
+    Ok((input, Statement::Select(projection, account, condition, group_by)))
 }
 
 /// FROM account
@@ -55,6 +58,17 @@ fn proj_auto(input: &str) -> IResult<&str, Projection> {
     let (input, _) = tag_no_case("AUTO(*)")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Projection::Auto))
+}
+
+fn group_by(input: &str) -> IResult<&str, GroupBy> {
+    let (input, _) = tag_no_case("group by")(input)?;
+    let (input, _) =  multispace1(input)?;
+    let (input, group_by_value) = alpha1(input)?;
+    match group_by_value {
+        "label" => Ok((input, GroupBy::Label)),
+        // TODO fix the error handling
+        _ => Err(Error(nom::error::Error { input, code: ErrorKind::Fail }))
+    }
 }
 
 #[cfg(test)]

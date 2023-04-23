@@ -1,12 +1,13 @@
+use std::collections::HashMap;
 use comfy_table::{Cell, CellAlignment, Table, TableComponent};
 use crate::config::Config;
 use crate::db::Database;
-use crate::sql::parser::{Condition, Projection};
+use crate::sql::parser::{Condition, GroupBy, Projection};
 use crate::sql::query::{format_amount, format_date, set_cell_style};
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
-pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, auto_label_rules_file: &str) {
+pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, group_by: Option<GroupBy>, auto_label_rules_file: &str) {
     let mut transactions = db.query_new(from, condition);
 
     if let Projection::Auto = projection {
@@ -17,28 +18,44 @@ pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option
         }
     }
 
-    process_projection(&projection, &transactions)
+    process_projection(&projection, group_by, &transactions)
 }
 
 /// Print outputs based on query projection, e.g. SELECT *, SELECT SUM(*), etc
-fn process_projection(projection: &Projection, transactions: &[Transaction]) {
-// TODO: projection
-//     if group_by.len() == 1 {
-//         if let Expr::Identifier(ident) = &group_by[0] {
-//             if ident.value.to_ascii_lowercase() == "tags" {
-//                 group_by_tags(transactions, &mut table);
-//             }
-//         }
-//     }
-
-
+fn process_projection(projection: &Projection, group_by: Option<GroupBy>, transactions: &[Transaction]) {
     let mut table = Table::new();
     table.remove_style(TableComponent::HorizontalLines);
     table.remove_style(TableComponent::MiddleIntersections);
     table.remove_style(TableComponent::LeftBorderIntersections);
     table.remove_style(TableComponent::RightBorderIntersections);
 
-    handle_normal_select(transactions, &mut table, projection);
+    if group_by.is_some() {
+        group_by_label(transactions, &mut table);
+    } else {
+        handle_normal_select(transactions, &mut table, projection);
+    }
+}
+
+/// handles 'GROUP BY label'
+fn group_by_label(transactions: &[Transaction], table: &mut Table) {
+    table.set_header(vec!["Tag", "Amount"]);
+
+    let mut group_by_map: HashMap<&str, f32> = HashMap::new();
+    for t in transactions {
+        for tag in &t.labels {
+            let entry = group_by_map.entry(tag.as_str()).or_insert(0.0);
+            *entry += t.amount;
+        }
+    }
+
+    for (label, amount) in group_by_map {
+        table.add_row(vec![
+            Cell::new(label),
+            Cell::new(format_amount(amount).as_str()).set_alignment(CellAlignment::Right)
+        ]);
+    }
+
+    println!("{table}");
 }
 
 fn handle_normal_select(transactions: &[Transaction], table: &mut Table, projection: &Projection) {

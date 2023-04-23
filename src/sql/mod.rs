@@ -24,8 +24,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 copy::execute_import(db, &account, &file_path, inverse_amount, dryrun);
                 return Ok(())
             }
-            parser::Statement::Select(projection, from, condition) => {
-                query::select::run_select(db, projection, from, condition, auto_label_rules_file);
+            parser::Statement::Select(projection, from, condition, group_by) => {
+                query::select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
                 return Ok(())
             }
             parser::Statement::UpdateLabel(labels, condition) => {
