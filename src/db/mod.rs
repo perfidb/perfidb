@@ -1,4 +1,3 @@
-mod filter;
 mod search;
 mod minhash;
 
@@ -10,10 +9,7 @@ use std::path::Path;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use log::info;
-use rustyline::ConditionalEventHandler;
 use serde::{Deserialize, Serialize};
-use sqlparser::ast::{BinaryOperator, Expr};
-use sqlparser::ast::Expr::Identifier;
 use crate::common::ResultError;
 
 use crate::csv_reader::Record;
@@ -21,7 +17,7 @@ use minhash::StringMinHash;
 use sql::parser::Condition;
 use crate::db::search::SearchIndex;
 use crate::sql;
-use crate::sql::parser::{Operator, Projection};
+use crate::sql::parser::{Operator};
 use crate::tagger::Tagger;
 use crate::transaction::Transaction;
 
@@ -222,29 +218,6 @@ impl Database {
         self.save();
     }
 
-    pub(crate) fn set_labels_for_multiple_transactions(&mut self, where_clause: &Expr, labels: &[&str]) {
-        let mut transactions = HashSet::<u32>::new();
-        for trans_id in self.transactions.keys() {
-            transactions.insert(*trans_id);
-        }
-
-        transactions = self.filter_transactions(&transactions, where_clause);
-
-        for label in labels {
-            let label_id = self.label_minhash.put(label.to_string());
-
-            for trans_id in &transactions {
-                let transaction = self.transactions.get_mut(trans_id).unwrap();
-                if !transaction.labels.contains(&label_id) {
-                    transaction.labels.push(label_id);
-                    self.label_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
-                }
-            }
-        }
-
-        self.save();
-    }
-
     pub(crate) fn set_labels_for_multiple_transactions_new(&mut self, labels: &[&str], condition: Option<Condition>) {
         let mut transactions = HashSet::<u32>::new();
         for trans_id in self.transactions.keys() {
@@ -302,51 +275,6 @@ impl Database {
         }
 
         self.save();
-    }
-
-    /// Filter transactions based on the given SQL where clause.
-    /// Returns the set of transaction ids after applying the filter.
-    fn filter_transactions(&self, transactions: &HashSet<u32>, where_clause: &Expr) -> HashSet<u32> {
-        info!("{:?}", where_clause);
-
-        match where_clause {
-            Expr::BinaryOp { left, op: BinaryOperator::NotEq, right } => {
-                let left: &Expr = left;
-                let right: &Expr = right;
-
-                filter::handle_not_equal((*left).clone(), (*right).clone(), self, transactions)
-            },
-
-            // label IS NULL
-            Expr::IsNull(expr) => {
-                // Had to unbox here. Rust 1.63
-                let expr :&Expr = expr;
-                if let Identifier(ident) = expr {
-                    if ident.value == "label" {
-                        return transactions.iter().filter(|id| !self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
-                    }
-                }
-                HashSet::new()
-            },
-
-            // label IS NOT NULL
-            Expr::IsNotNull(expr) => {
-                // Had to unbox here. Rust 1.63
-                let expr :&Expr = expr;
-                if let Identifier(ident) = expr {
-                    if ident.value == "label" {
-                        return transactions.iter().filter(|id| self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>();
-                    }
-                }
-                HashSet::new()
-            },
-
-            Expr::Nested(n) => {
-                self.filter_transactions(transactions, n)
-            },
-
-            _ => HashSet::new()
-        }
     }
 
     /// Filter transactions based on the given SQL where clause.
@@ -414,11 +342,24 @@ impl Database {
                 self.search_index.search(&keyword)
             }
 
-            // Assuming op is '='
-            Condition::Label(_op, label) => {
-                match self.label_minhash.lookup_by_string(label) {
-                    Some(label_id) => transactions.iter().filter(|id| self.transactions.get(id).unwrap().labels.contains(&label_id)).cloned().collect::<HashSet<u32>>(),
-                    None => HashSet::new()
+            Condition::Label(op, label) => {
+                match op {
+                    Operator::Eq => {
+                        match self.label_minhash.lookup_by_string(label) {
+                            Some(label_id) => transactions.iter().filter(|id| self.transactions.get(id).unwrap().labels.contains(&label_id)).cloned().collect::<HashSet<u32>>(),
+                            None => HashSet::new()
+                        }
+                    }
+
+                    Operator::IsNull => {
+                        transactions.iter().filter(|id| !self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>()
+                    }
+
+                    Operator::IsNotNull => {
+                        transactions.iter().filter(|id| self.transactions.get(id).unwrap().has_tags()).cloned().collect::<HashSet<u32>>()
+                    }
+
+                    _ => HashSet::new()
                 }
             }
 

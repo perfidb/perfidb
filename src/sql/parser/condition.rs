@@ -186,13 +186,20 @@ fn parse_date_range(date_str: &str) -> IResult<&str, Range<NaiveDate>> {
 }
 
 
-/// label = ...
+/// label = ...   label IS NULL    label IS NOT NULL
 fn where_label(input: &str) -> IResult<&str, Condition> {
     let (input, _) = tag_no_case("label")(input)?;
     let (input, _) = multispace1(input)?;
-    let (input, operator) = tag_eq_operator(input)?;
-    let (input, labels) = delimited(char('\''), is_not("'"), char('\''))(input)?;
-    Ok((input, Condition::Label(operator, labels.into())))
+    let (input, op) = alt((tag_eq_operator, tag_is_null_operator, tag_is_not_null_operator))(input)?;
+
+    // If we see 'IS NULL' or 'IS NOT NULL' there is no need to parse the labels, we just return empty string label here
+    match op {
+        Operator::IsNull | Operator::IsNotNull => Ok((input, Condition::Label(op, "".into()))),
+        _ => {
+            let (input, labels) = delimited(char('\''), is_not("'"), char('\''))(input)?;
+            Ok((input, Condition::Label(op, labels.into())))
+        }
+    }
 }
 
 
@@ -201,6 +208,20 @@ fn tag_eq_operator(input: &str) -> IResult<&str, Operator> {
     let (input, _) = tag_no_case("=")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Operator::Eq))
+}
+
+/// IS NULL
+fn tag_is_null_operator(input: &str) -> IResult<&str, Operator> {
+    let (input, _) = tag_no_case("IS NULL")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Operator::IsNull))
+}
+
+/// IS NOT NULL
+fn tag_is_not_null_operator(input: &str) -> IResult<&str, Operator> {
+    let (input, _) = tag_no_case("IS NOT NULL")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Operator::IsNotNull))
 }
 
 /// 'like'
