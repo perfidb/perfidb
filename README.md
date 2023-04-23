@@ -82,18 +82,18 @@ SELECT * WHERE date = 7;
 SELECT * WHERE date = 2022-07;
 
 -- Filter by date
-SELECT * FROM db WHERE date = 2022-07-31;
+SELECT * WHERE date = 2022-07-31;
 ```
 
 ##### Labels
 ```sql
-SELECT * FROM db WHERE label = 'grocery';
+SELECT * WHERE label = 'grocery';
 
 -- Preview auto labelling results
-SELECT auto() FROM db WHERE date = 2022-07;
+SELECT auto() WHERE date = 2022-07;
 
 -- Apply auto labelling 
-UPDATE SET label = auto() WHERE date = 2022-07;
+UPDATE SET label = 'auto()' WHERE date = 2022-07;
 ```
 
 ##### Transaction ID
