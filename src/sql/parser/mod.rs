@@ -4,6 +4,7 @@ mod select;
 mod update;
 mod condition;
 mod insert;
+mod delete;
 
 use std::ops::Range;
 use chrono::NaiveDate;
@@ -28,6 +29,9 @@ pub(crate) enum Statement {
 
     /// INSERT INTO account VALUES (2022-05-20, 'description', -30.0, 'label1, label2'), (2022-05-21, 'description', -32.0)
     Insert(Option<String>, Vec<Record>),
+
+    /// DELETE trans_id
+    Delete(Vec<u32>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -102,7 +106,14 @@ impl From<&str> for Operator {
 }
 
 pub(crate) fn parse(query: &str) -> IResult<&str, Statement> {
-    alt((export::export, import::import, select::select, update::update, insert::parse_insert))(query)
+    alt((
+        export::export,
+        import::import,
+        select::select,
+        update::update,
+        insert::parse_insert,
+        delete::parse_delete,
+    ))(query)
 }
 
 pub(crate) fn non_space(input: &str) -> IResult<&str, &str> {

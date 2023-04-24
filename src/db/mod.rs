@@ -420,6 +420,15 @@ impl Database {
         self.transactions.get(&id).map(|t| self.to_transaction(t))
     }
 
+    pub(crate) fn delete(&self, ids: &[u32]) {
+        // TODO: to implement after roaring bitmap
+    }
+
+    fn delete_single(&mut self, id: u32) {
+        // let t = self.transactions.get(id).unwrap();
+        // let date_index: &mut Vec<u32> = self.date_index.get_mut(&t.date.date()).unwrap();
+    }
+
     fn to_transaction(&self, t: &TransactionRecord) -> Transaction {
         // TODO: use a function to format tags
         Transaction::new(t.id, t.account.clone(), t.date, t.description.as_str(), t.amount,

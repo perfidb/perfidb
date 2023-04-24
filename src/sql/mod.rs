@@ -6,6 +6,8 @@ pub mod parser;
 use log::{info, warn};
 use nom::error::Error;
 use crate::{Config, Database};
+use crate::sql::parser::Statement;
+use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, UpdateLabel};
 use crate::tagger::Tagger;
 
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), String> {
@@ -15,16 +17,16 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
     match result {
         Ok((_input, statement)) => {
             match statement {
-                parser::Statement::Export(file_path) => {
+                Export(file_path) => {
                     copy::execute_export_db(db, &file_path);
                 }
-                parser::Statement::Import(account, file_path, inverse_amount, dryrun) => {
+                Import(account, file_path, inverse_amount, dryrun) => {
                     copy::execute_import(db, &account, &file_path, inverse_amount, dryrun);
                 }
-                parser::Statement::Select(projection, from, condition, group_by) => {
+                Select(projection, from, condition, group_by) => {
                     select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
                 }
-                parser::Statement::UpdateLabel(labels, condition) => {
+                UpdateLabel(labels, condition) => {
                     if labels.to_ascii_lowercase() == "auto()" {
                         let auto_labeller = Tagger::new(&Config::load_from_file(auto_label_rules_file));
                         db.auto_label_new(&auto_labeller, condition);
@@ -34,8 +36,11 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                         db.set_labels_for_multiple_transactions_new(&labels, condition);
                     }
                 }
-                parser::Statement::Insert(account, records) => {
+                Insert(account, records) => {
                     insert::execute_insert(db, account, records);
+                }
+                Delete(trans_ids) => {
+                    db.delete(&trans_ids);
                 }
             }
         },
