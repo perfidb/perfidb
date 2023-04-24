@@ -434,7 +434,7 @@ impl Database {
     }
 
     fn delete_single(&mut self, trans_id: u32) {
-        if let Some(t) = self.transactions.get(&trans_id) {
+        if let Some(t) = self.transactions.remove(&trans_id) {
             // Remove transaction from date index
             self.date_index.entry(t.date.date()).and_modify(|bitmap| { bitmap.remove(trans_id); });
 
