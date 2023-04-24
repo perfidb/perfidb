@@ -1,5 +1,6 @@
 mod search;
 mod minhash;
+mod roaring_bitmap;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -15,6 +16,7 @@ use crate::common::ResultError;
 use crate::csv_reader::Record;
 use minhash::StringMinHash;
 use sql::parser::Condition;
+use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
 use crate::sql::parser::{Operator};
@@ -56,12 +58,12 @@ pub(crate) struct Database {
     transactions: HashMap<u32, TransactionRecord>,
 
     /// Key is transaction date, value is a list of transaction ids.
-    date_index: BTreeMap<NaiveDate, Vec<u32>>,
+    date_index: BTreeMap<NaiveDate, PerfidbRoaringBitmap>,
 
     label_minhash: StringMinHash,
 
     /// label id to a list of transactions with that tag
-    label_id_to_transactions: HashMap<u32, Vec<u32>>,
+    label_id_to_transactions: HashMap<u32, PerfidbRoaringBitmap>,
 
     /// Inverted index for full-text search on 'description'
     search_index: SearchIndex,
@@ -145,10 +147,20 @@ impl Database {
             self.transaction_id_seed = trans_id + 1;
         }
 
-        let labels = match &t.labels {
+        let labels :Vec<u32> = match &t.labels {
             Some(l) => l.clone(),
             None => vec![]
         }.iter().map(|l| self.label_minhash.put(l)).collect();
+
+        let date: NaiveDate = t.date.date();
+        // Add to date index
+        self.date_index.entry(date).or_insert(PerfidbRoaringBitmap::new()).insert(trans_id);
+
+        // Add to label index
+        for label_id in &labels {
+            self.label_id_to_transactions.entry(*label_id).or_insert(PerfidbRoaringBitmap::new())
+                .insert(trans_id);
+        }
 
         let t = TransactionRecord {
             id: trans_id,
@@ -158,13 +170,6 @@ impl Database {
             amount: t.amount,
             labels,
         };
-
-        let date: NaiveDate = t.date.date();
-        self.date_index.entry(date).or_insert(vec![]);
-
-        // Add to date index
-        self.date_index.get_mut(&date).unwrap().push(trans_id);
-
         self.search_index.index(&t);
 
         // Add to transactions table
@@ -211,7 +216,7 @@ impl Database {
             if !transaction.labels.contains(&label_id) {
                 transaction.labels.push(label_id);
                 // self.label_id_to_transactions may not have the new label_id
-                self.label_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
+                self.label_id_to_transactions.entry(label_id).or_insert(PerfidbRoaringBitmap::new()).insert(transaction.id);
             }
         }
 
@@ -235,7 +240,7 @@ impl Database {
                 let transaction = self.transactions.get_mut(trans_id).unwrap();
                 if !transaction.labels.contains(&label_id) {
                     transaction.labels.push(label_id);
-                    self.label_id_to_transactions.entry(label_id).or_insert(vec![]).push(transaction.id);
+                    self.label_id_to_transactions.entry(label_id).or_insert(PerfidbRoaringBitmap::new()).insert(transaction.id);
                 }
             }
         }
@@ -270,7 +275,9 @@ impl Database {
             if let Some(label_id_to_remove) = self.label_minhash.lookup_by_string(*label) {
                 transaction.labels.retain(|existing_id| *existing_id != label_id_to_remove);
                 // Remove transaction from dictionary
-                self.label_id_to_transactions.get_mut(&label_id_to_remove).unwrap().retain(|existing_trans_id| *existing_trans_id != trans_id);
+                self.label_id_to_transactions.entry(label_id_to_remove).and_modify(|bitmap| {
+                    bitmap.remove(trans_id);
+                });
             }
         }
 
@@ -346,7 +353,7 @@ impl Database {
                 match op {
                     Operator::Eq => {
                         match self.label_minhash.lookup_by_string(label) {
-                            Some(label_id) => transactions.iter().filter(|id| self.transactions.get(id).unwrap().labels.contains(&label_id)).cloned().collect::<HashSet<u32>>(),
+                            Some(label_id) => self.label_id_to_transactions.get(&label_id).unwrap().iter().collect::<HashSet<u32>>(),
                             None => HashSet::new()
                         }
                     }
@@ -366,8 +373,8 @@ impl Database {
             Condition::Date(_op, date_range) => {
                 let mut trans_in_date_range = HashSet::<u32>::new();
                 for (_, trans_ids) in self.date_index.range(date_range) {
-                    for id in trans_ids {
-                        trans_in_date_range.insert(*id);
+                    for id in trans_ids.iter() {
+                        trans_in_date_range.insert(id);
                     }
                 }
                 trans_in_date_range
@@ -420,13 +427,25 @@ impl Database {
         self.transactions.get(&id).map(|t| self.to_transaction(t))
     }
 
-    pub(crate) fn delete(&self, ids: &[u32]) {
-        // TODO: to implement after roaring bitmap
+    pub(crate) fn delete(&mut self, ids: &[u32]) {
+        for trans_id in ids {
+            self.delete_single(*trans_id);
+        }
     }
 
-    fn delete_single(&mut self, id: u32) {
-        // let t = self.transactions.get(id).unwrap();
-        // let date_index: &mut Vec<u32> = self.date_index.get_mut(&t.date.date()).unwrap();
+    fn delete_single(&mut self, trans_id: u32) {
+        if let Some(t) = self.transactions.get(&trans_id) {
+            // Remove transaction from date index
+            self.date_index.entry(t.date.date()).and_modify(|bitmap| { bitmap.remove(trans_id); });
+
+            // Remove transaction from label index
+            for label_id in &t.labels {
+                self.label_id_to_transactions.entry(*label_id).and_modify(|bitmap| { bitmap.remove(trans_id); });
+            }
+
+            // Remove transaction from full text search index
+            self.search_index.delete(trans_id, &t.description);
+        }
     }
 
     fn to_transaction(&self, t: &TransactionRecord) -> Transaction {

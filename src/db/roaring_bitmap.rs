@@ -3,6 +3,7 @@ use std::fmt;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use bytes::BufMut;
+use roaring::bitmap::Iter;
 use serde::de::Visitor;
 
 /// Create our own roaring bitmap type so we can implement
@@ -12,6 +13,18 @@ pub(crate) struct PerfidbRoaringBitmap(pub(crate) RoaringBitmap);
 impl PerfidbRoaringBitmap {
     pub(crate) fn new() -> PerfidbRoaringBitmap {
         PerfidbRoaringBitmap(RoaringBitmap::new())
+    }
+
+    pub(crate) fn insert(&mut self, value: u32) -> bool {
+        self.0.insert(value)
+    }
+
+    pub(crate) fn remove(&mut self, value: u32) -> bool {
+        self.0.remove(value)
+    }
+
+    pub(crate) fn iter(&self) -> Iter {
+        self.0.iter()
     }
 }
 

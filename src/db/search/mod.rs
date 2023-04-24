@@ -3,10 +3,8 @@ use std::ops::BitAnd;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use crate::db::minhash::StringMinHash;
+use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::TransactionRecord;
-use self::roaring_bitmap::PerfidbRoaringBitmap;
-
-mod roaring_bitmap;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct SearchIndex {
@@ -27,7 +25,18 @@ impl SearchIndex {
         for token in t.description.split_whitespace() {
             let token_hash: u32 = self.token_minhash.put(token);
             let posting: &mut PerfidbRoaringBitmap = self.posting_list.entry(token_hash).or_insert_with(PerfidbRoaringBitmap::new);
-            posting.0.insert(t.id);
+            posting.insert(t.id);
+        }
+    }
+
+    pub(crate) fn delete(&mut self, trans_id: u32, description: &str) {
+        for token in description.split_whitespace() {
+            let token_hash: Option<u32> = self.token_minhash.lookup_by_string(token);
+            if let Some(token_hash) = token_hash {
+                self.posting_list.entry(token_hash).and_modify(|bitmap| {
+                    bitmap.remove(trans_id);
+                });
+            }
         }
     }
 
@@ -35,8 +44,8 @@ impl SearchIndex {
         let mut maps: Vec<&RoaringBitmap> = vec![];
         for token in keyword.split_whitespace() {
             if let Some(hash) = self.token_minhash.lookup_by_string(token) {
-                if let Some(roaring_bitmap) = self.posting_list.get(&hash) {
-                    maps.push(&roaring_bitmap.0);
+                if let Some(bitmap) = self.posting_list.get(&hash) {
+                    maps.push(&bitmap.0);
                 }
             }
         }
