@@ -3,10 +3,10 @@ mod insert;
 mod copy;
 pub mod parser;
 
-use log::{info, warn};
-use nom::error::Error;
+
+
 use crate::{Config, Database};
-use crate::sql::parser::Statement;
+
 use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, UpdateLabel};
 use crate::tagger::Tagger;
 

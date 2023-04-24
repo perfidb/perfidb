@@ -14,7 +14,7 @@ use nom::{AsChar, InputTakeAtPosition, IResult};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{char, digit1, multispace0};
-use nom::error::{Error, ErrorKind, ParseError};
+use nom::error::{Error, ErrorKind};
 use crate::csv_reader::Record;
 
 #[derive(Debug, PartialEq)]

@@ -4,7 +4,7 @@ use log::warn;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, tag_no_case, take_till};
 use nom::character::complete::{char, digit1, multispace0, multispace1, u32};
-use nom::{InputTakeAtPosition, IResult};
+use nom::{IResult};
 use nom::multi::many0;
 use nom::sequence::delimited;
 use crate::sql::parser::{Condition, floating_point_num, LogicalOperator, Operator, yyyy_mm_dd_date};

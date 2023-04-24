@@ -1,5 +1,5 @@
 use nom::bytes::complete::tag_no_case;
-use nom::character::complete::{multispace0, multispace1};
+use nom::character::complete::{multispace0};
 use nom::IResult;
 use nom::multi::many1;
 use crate::sql::parser::Statement;
