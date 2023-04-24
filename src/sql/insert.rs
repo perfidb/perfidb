@@ -1,3 +1,4 @@
+use log::info;
 use crate::csv_reader::Record;
 use crate::Database;
 
@@ -17,4 +18,6 @@ pub(crate) fn execute_insert(db : &mut Database, account: Option<String>, record
     }
 
     db.save();
+
+    info!("{total_inserted} transactions inserted");
 }

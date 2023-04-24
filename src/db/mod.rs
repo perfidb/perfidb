@@ -1,6 +1,7 @@
 mod search;
 mod minhash;
 mod roaring_bitmap;
+mod label_id_vec;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -16,6 +17,7 @@ use crate::common::ResultError;
 use crate::csv_reader::Record;
 use minhash::StringMinHash;
 use sql::parser::Condition;
+use crate::db::label_id_vec::LabelIdVec;
 use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
@@ -35,8 +37,8 @@ pub(crate) struct TransactionRecord {
     description: String,
     amount: f32,
 
-    // List of tag ids
-    labels: Vec<u32>,
+    // List of label ids
+    labels: LabelIdVec,
 }
 
 impl TransactionRecord {
@@ -147,17 +149,20 @@ impl Database {
             self.transaction_id_seed = trans_id + 1;
         }
 
-        let labels :Vec<u32> = match &t.labels {
-            Some(l) => l.clone(),
-            None => vec![]
-        }.iter().map(|l| self.label_minhash.put(l)).collect();
-
         let date: NaiveDate = t.date.date();
         // Add to date index
         self.date_index.entry(date).or_insert(PerfidbRoaringBitmap::new()).insert(trans_id);
 
+        let label_ids = match &t.labels {
+            Some(labels) => {
+                let label_ids: Vec<u32> = labels.iter().map(|l| self.label_minhash.put(l)).collect();
+                LabelIdVec::from_vec(label_ids)
+            },
+            None => LabelIdVec::empty()
+        };
+
         // Add to label index
-        for label_id in &labels {
+        for label_id in &*label_ids {
             self.label_id_to_transactions.entry(*label_id).or_insert(PerfidbRoaringBitmap::new())
                 .insert(trans_id);
         }
@@ -168,7 +173,7 @@ impl Database {
             date: t.date,
             description: t.description.clone(),
             amount: t.amount,
-            labels,
+            labels: label_ids,
         };
         self.search_index.index(&t);
 
@@ -213,9 +218,8 @@ impl Database {
             // Ensure label is in minhash. Get the minhash for this label.
             let label_id = self.label_minhash.put(label.to_string());
             let transaction = self.transactions.get_mut(&trans_id).unwrap();
-            if !transaction.labels.contains(&label_id) {
-                transaction.labels.push(label_id);
-                // self.label_id_to_transactions may not have the new label_id
+            // If adding label_id to labels is successful, meaning it doesn't exist before
+            if transaction.labels.add(label_id) {
                 self.label_id_to_transactions.entry(label_id).or_insert(PerfidbRoaringBitmap::new()).insert(transaction.id);
             }
         }
@@ -238,8 +242,7 @@ impl Database {
 
             for trans_id in &transactions {
                 let transaction = self.transactions.get_mut(trans_id).unwrap();
-                if !transaction.labels.contains(&label_id) {
-                    transaction.labels.push(label_id);
+                if transaction.labels.add(label_id) {
                     self.label_id_to_transactions.entry(label_id).or_insert(PerfidbRoaringBitmap::new()).insert(transaction.id);
                 }
             }
@@ -273,7 +276,7 @@ impl Database {
         for label in labels {
             // Only run if this tag id exists
             if let Some(label_id_to_remove) = self.label_minhash.lookup_by_string(*label) {
-                transaction.labels.retain(|existing_id| *existing_id != label_id_to_remove);
+                transaction.labels.remove(label_id_to_remove);
                 // Remove transaction from dictionary
                 self.label_id_to_transactions.entry(label_id_to_remove).and_modify(|bitmap| {
                     bitmap.remove(trans_id);
@@ -439,7 +442,7 @@ impl Database {
             self.date_index.entry(t.date.date()).and_modify(|bitmap| { bitmap.remove(trans_id); });
 
             // Remove transaction from label index
-            for label_id in &t.labels {
+            for label_id in &*t.labels {
                 self.label_id_to_transactions.entry(*label_id).and_modify(|bitmap| { bitmap.remove(trans_id); });
             }
 
