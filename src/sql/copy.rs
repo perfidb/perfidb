@@ -53,7 +53,7 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
 
 /// Export transactions to a file
 pub(crate) fn execute_export_db(db : &mut Database, file_path :&str) {
-    let transactions = db.query_new(None, None);
+    let transactions = db.query(None, None);
     let mut csv_writer = WriterBuilder::new().has_headers(true).from_path(file_path).unwrap();
     for t in transactions {
         csv_writer.serialize(t).unwrap();

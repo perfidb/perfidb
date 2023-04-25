@@ -234,7 +234,7 @@ impl Database {
         }
 
         if let Some(condition) = condition {
-            transactions = self.filter_transactions_new(&transactions, condition);
+            transactions = self.filter_transactions(&transactions, condition);
         }
 
         for label in labels {
@@ -258,7 +258,7 @@ impl Database {
         }
 
         if let Some(condition) = condition {
-            transactions = self.filter_transactions_new(&transactions, condition);
+            transactions = self.filter_transactions(&transactions, condition);
         }
         for trans_id in &transactions {
             let t = self.transactions.get(trans_id).unwrap();
@@ -289,7 +289,7 @@ impl Database {
 
     /// Filter transactions based on the given SQL where clause.
     /// Returns the set of transaction ids after applying the filter.
-    fn filter_transactions_new(&self, transactions: &HashSet<u32>, condition: Condition) -> HashSet<u32> {
+    fn filter_transactions(&self, transactions: &HashSet<u32>, condition: Condition) -> HashSet<u32> {
         let get_amount = |id| self.transactions.get(id).unwrap().amount;
 
         match condition {
@@ -384,28 +384,28 @@ impl Database {
             }
 
             Condition::And(sub_conditions) => {
-                let c1_result = self.filter_transactions_new(transactions, (*sub_conditions).0);
-                let c2_result = self.filter_transactions_new(transactions, (*sub_conditions).1);
+                let c1_result = self.filter_transactions(transactions, (*sub_conditions).0);
+                let c2_result = self.filter_transactions(transactions, (*sub_conditions).1);
                 c1_result.intersection(&c2_result).cloned().collect()
             }
 
             Condition::Or(sub_conditions) => {
-                let c1_result = self.filter_transactions_new(transactions, (*sub_conditions).0);
-                let c2_result = self.filter_transactions_new(transactions, (*sub_conditions).1);
+                let c1_result = self.filter_transactions(transactions, (*sub_conditions).0);
+                let c2_result = self.filter_transactions(transactions, (*sub_conditions).1);
                 c1_result.union(&c2_result).cloned().collect()
             }
         }
     }
 
     /// The new select implementation
-    pub(crate) fn query_new(&mut self, from: Option<String>, condition: Option<Condition>) -> Vec<Transaction> {
+    pub(crate) fn query(&mut self, from: Option<String>, condition: Option<Condition>) -> Vec<Transaction> {
         let mut trans :HashSet<u32> = match from {
             None => self.transactions.keys().cloned().collect::<HashSet<u32>>(),
             Some(account) => self.transactions.values().filter(|t| account == t.account).map(|t| t.id).collect()
         };
 
         if let Some(condition) = condition {
-            trans = self.filter_transactions_new(&trans, condition);
+            trans = self.filter_transactions(&trans, condition);
         }
 
         let mut trans :Vec<&TransactionRecord> = trans.iter().map(|id| self.transactions.get(id).unwrap()).collect();
