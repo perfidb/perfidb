@@ -12,7 +12,7 @@ PerfiDB is a SQL database engineered specifically to store and manage personal f
 IMPORT amex FROM 'bank-exports/2022-03.csv';
 
 -- List all transactions
-SELECT * FROM db;
+SELECT * ;
 
 -- List transactions from account 'amex'
 SELECT * FROM amex;
@@ -21,7 +21,7 @@ SELECT * FROM amex;
 UPDATE db SET label = 'grocery, bread' WHERE date = '2022-07' AND description LIKE 'bakehouse';
 
 -- List all transactions labelled with 'grocery'.
-SELECT * FROM db WHERE label = 'grocery';
+SELECT * WHERE label = 'grocery';
 ```
 
 # How to use PerfiDB
