@@ -2,6 +2,7 @@ mod search;
 mod minhash;
 mod roaring_bitmap;
 mod label_id_vec;
+pub(crate) mod label_op;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -18,6 +19,7 @@ use crate::csv_reader::Record;
 use minhash::StringMinHash;
 use sql::parser::Condition;
 use crate::db::label_id_vec::LabelIdVec;
+use crate::db::label_op::LabelOp;
 use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
@@ -181,35 +183,32 @@ impl Database {
         self.transactions.insert(trans_id, t);
     }
 
-    pub(crate) fn update_labels(&mut self, trans_id: u32, labels: &str) {
-        let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).filter(|t| !t.is_empty()).collect();
+    /// Applying labelling operations on a transaction
+    pub(crate) fn apply_label_ops(&mut self, trans_id: u32, label_ops: Vec<LabelOp>) {
+        for op in label_ops {
+            self.transactions.entry(trans_id).and_modify(|transaction| {
+                match op.op {
+                    label_op::Operation::Add => {
+                        let label_hash = self.label_minhash.put(op.label);
+                        self.label_id_to_transactions.entry(label_hash).or_insert(PerfidbRoaringBitmap::new()).insert(trans_id);
+                        // Add the label id to transaction
+                        transaction.labels.add(label_hash);
+                    },
 
-        let mut existing_labels = HashSet::<String>::new();
-        for tag_id in self.transactions.get(&trans_id).unwrap().labels.iter() {
-            existing_labels.insert(self.label_minhash.lookup_by_hash(tag_id).unwrap().clone());
-        }
-
-        let mut tags_to_remove :Vec<&str> = vec![];
-        let mut tags_to_add :Vec<&str> = vec![];
-        for existing_label in existing_labels.iter() {
-            if !labels.contains(&existing_label.as_str()) {
-                tags_to_remove.push(existing_label);
-            }
-        }
-        for new_label in labels {
-            if !existing_labels.contains(new_label) {
-                tags_to_add.push(new_label);
-            }
-        }
-
-        if !tags_to_remove.is_empty() {
-            self.remove_tags(trans_id, &tags_to_remove);
-        }
-
-        if !tags_to_add.is_empty() {
-            self.add_labels(trans_id, &tags_to_add);
+                    label_op::Operation::Remove => {
+                        if let Some(label_hash) = self.label_minhash.lookup_by_string(op.label) {
+                            self.label_id_to_transactions.entry(label_hash).and_modify(|bitmap| {
+                                bitmap.remove(trans_id);
+                            });
+                            // Remove labels from transaction
+                            transaction.labels.remove(label_hash);
+                        }
+                    }
+                }
+            });
         }
     }
+
 
     pub(crate) fn add_labels(&mut self, trans_id: u32, labels_to_add: &[&str]) {
         info!("Adding labels {:?} for transaction {}", labels_to_add, trans_id);
@@ -267,24 +266,6 @@ impl Database {
                 self.add_labels(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
             }
         }
-    }
-
-    pub(crate) fn remove_tags(&mut self, trans_id: u32, labels: &[&str]) {
-        info!("Removing tags {:?} from transaction {}", labels, trans_id);
-        let transaction = self.transactions.get_mut(&trans_id).unwrap();
-
-        for label in labels {
-            // Only run if this tag id exists
-            if let Some(label_id_to_remove) = self.label_minhash.lookup_by_string(*label) {
-                transaction.labels.remove(label_id_to_remove);
-                // Remove transaction from dictionary
-                self.label_id_to_transactions.entry(label_id_to_remove).and_modify(|bitmap| {
-                    bitmap.remove(trans_id);
-                });
-            }
-        }
-
-        self.save();
     }
 
     /// Filter transactions based on the given SQL where clause.
@@ -472,7 +453,7 @@ mod tests {
             date: NaiveDateTime::from_str("2022-07-31T17:30:45").unwrap(),
             description: "food".to_string(),
             amount: 29.95,
-            labels: vec![]
+            labels: LabelIdVec::empty()
         };
 
         let s = serde_json::to_string::<TransactionRecord>(&t).unwrap();

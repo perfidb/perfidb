@@ -6,7 +6,7 @@ use crossterm::event::{Event, KeyCode, read};
 use crossterm::style::{self, Color, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 
-use crate::Database;
+use crate::{Database, db};
 use crate::transaction::Transaction;
 
 /// Open a terminal dialog to label transactions in a live table
@@ -51,7 +51,12 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database) -> Res
                             let mut new_labels = String::new();
                             std::io::stdin().read_line(&mut new_labels)?;
                             let trans_id = transactions[window.selected_transaction_index()].id;
-                            db.update_labels(trans_id, &new_labels);
+
+                            let label_ops = db::label_op::parse_label_ops(&new_labels);
+                            if let Ok((_, label_ops)) = label_ops {
+                                db.apply_label_ops(trans_id, label_ops);
+                            }
+
                             transactions[window.selected_transaction_index()].labels = db.find_by_id(trans_id).labels;
                             terminal::enable_raw_mode().unwrap();
                             repaint_window(vec![(window.selected_row, window.offset + window.selected_row as usize, true)], &transactions, window.selected_row);

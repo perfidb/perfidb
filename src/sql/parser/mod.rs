@@ -120,6 +120,10 @@ pub(crate) fn non_space(input: &str) -> IResult<&str, &str> {
     input.split_at_position_complete(char::is_whitespace)
 }
 
+pub(crate) fn non_space1(input: &str) -> IResult<&str, &str> {
+    input.split_at_position1_complete(char::is_whitespace, ErrorKind::Fail)
+}
+
 fn yyyy_mm_dd_date(input: &str) -> IResult<&str, NaiveDate> {
     let original_input = input;
     let (input, year) = digit1(input)?;
@@ -174,11 +178,11 @@ mod tests {
         println!("{:?}", result);
 
         let query = "IMPORT amex-explorer FROM './finance/export.csv'";
-        let result = parse(query);
-        assert_eq!(result, Ok(Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), false, false)));
+        let (_, result) = parse(query).unwrap();
+        assert_eq!(result, Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), false, false));
 
         let query = "IMPORT amex-explorer FROM './finance/export.csv' (i, dryrun)";
-        let result = parse(query);
-        assert_eq!(result, Ok(Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), true, true)));
+        let (_, result) = parse(query).unwrap();
+        assert_eq!(result, Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), true, true));
     }
 }

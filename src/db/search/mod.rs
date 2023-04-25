@@ -66,6 +66,7 @@ impl SearchIndex {
 
 #[cfg(test)]
 mod tests {
+    use crate::db::label_id_vec::LabelIdVec;
     use crate::db::search::SearchIndex;
     use crate::db::TransactionRecord;
 
@@ -78,7 +79,7 @@ mod tests {
             date: Default::default(),
             description: "This is a test".to_string(),
             amount: 10.0,
-            labels: vec![1, 3],
+            labels: LabelIdVec::from_vec(vec![1, 3]),
         };
         search_index.index(&t);
 
