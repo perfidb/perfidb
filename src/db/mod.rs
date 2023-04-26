@@ -19,7 +19,7 @@ use crate::csv_reader::Record;
 use minhash::StringMinHash;
 use sql::parser::Condition;
 use crate::db::label_id_vec::LabelIdVec;
-use crate::db::label_op::LabelOp;
+use crate::db::label_op::{LabelCommand};
 use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
@@ -184,28 +184,36 @@ impl Database {
     }
 
     /// Applying labelling operations on a transaction
-    pub(crate) fn apply_label_ops(&mut self, trans_id: u32, label_ops: Vec<LabelOp>) {
-        for op in label_ops {
-            self.transactions.entry(trans_id).and_modify(|transaction| {
-                match op.op {
-                    label_op::Operation::Add => {
-                        let label_hash = self.label_minhash.put(op.label);
-                        self.label_id_to_transactions.entry(label_hash).or_insert(PerfidbRoaringBitmap::new()).insert(trans_id);
-                        // Add the label id to transaction
-                        transaction.labels.add(label_hash);
-                    },
+    pub(crate) fn apply_label_ops(&mut self, trans_id: u32, label_cmd: LabelCommand) {
+        match label_cmd {
+            LabelCommand::Manual(label_ops) => {
+                for op in label_ops {
+                    self.transactions.entry(trans_id).and_modify(|transaction| {
+                        match op.op {
+                            label_op::Operation::Add => {
+                                let label_hash = self.label_minhash.put(op.label);
+                                self.label_id_to_transactions.entry(label_hash).or_insert(PerfidbRoaringBitmap::new()).insert(trans_id);
+                                // Add the label id to transaction
+                                transaction.labels.add(label_hash);
+                            },
 
-                    label_op::Operation::Remove => {
-                        if let Some(label_hash) = self.label_minhash.lookup_by_string(op.label) {
-                            self.label_id_to_transactions.entry(label_hash).and_modify(|bitmap| {
-                                bitmap.remove(trans_id);
-                            });
-                            // Remove labels from transaction
-                            transaction.labels.remove(label_hash);
+                            label_op::Operation::Remove => {
+                                if let Some(label_hash) = self.label_minhash.lookup_by_string(op.label) {
+                                    self.label_id_to_transactions.entry(label_hash).and_modify(|bitmap| {
+                                        bitmap.remove(trans_id);
+                                    });
+                                    // Remove labels from transaction
+                                    transaction.labels.remove(label_hash);
+                                }
+                            }
                         }
-                    }
+                    });
                 }
-            });
+            }
+
+            LabelCommand::Auto => {
+                // TODO: implement auto
+            }
         }
     }
 
@@ -226,29 +234,6 @@ impl Database {
         self.save();
     }
 
-    pub(crate) fn set_labels_for_multiple_transactions_new(&mut self, labels: &[&str], condition: Option<Condition>) {
-        let mut transactions = HashSet::<u32>::new();
-        for trans_id in self.transactions.keys() {
-            transactions.insert(*trans_id);
-        }
-
-        if let Some(condition) = condition {
-            transactions = self.filter_transactions(&transactions, condition);
-        }
-
-        for label in labels {
-            let label_id = self.label_minhash.put(label.to_string());
-
-            for trans_id in &transactions {
-                let transaction = self.transactions.get_mut(trans_id).unwrap();
-                if transaction.labels.add(label_id) {
-                    self.label_id_to_transactions.entry(label_id).or_insert(PerfidbRoaringBitmap::new()).insert(transaction.id);
-                }
-            }
-        }
-
-        self.save();
-    }
 
     pub(crate) fn auto_label_new(&mut self, auto_labeller: &Tagger, condition: Option<Condition>) {
         let mut transactions = HashSet::<u32>::new();

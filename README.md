@@ -18,7 +18,7 @@ SELECT * ;
 SELECT * FROM amex;
 
 -- Add two labels (grocery, bread) to all transactions in July containing description text 'bakehouse'
-UPDATE db SET label = 'grocery, bread' WHERE date = '2022-07' AND description LIKE 'bakehouse';
+LABEL WHERE date = 2022-07 AND description LIKE 'bakehouse'  grocery bread;
 
 -- List all transactions labelled with 'grocery'.
 SELECT * WHERE label = 'grocery';
@@ -92,8 +92,11 @@ SELECT * WHERE label = 'grocery';
 -- Preview auto labelling results
 SELECT auto() WHERE date = 2022-07;
 
+-- Label by transaction id. Apply 'food' and 'dining' to transaction 100 and 201.
+LABEL 100 101 food dining;
+
 -- Apply auto labelling 
-UPDATE SET label = 'auto()' WHERE date = 2022-07;
+LABEL 100, 101 auto();
 ```
 
 ##### Transaction ID

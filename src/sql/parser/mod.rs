@@ -16,6 +16,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{char, digit1, multispace0};
 use nom::error::{Error, ErrorKind};
 use crate::csv_reader::Record;
+use crate::db::label_op::{LabelCommand, LabelOp};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Statement {
@@ -25,7 +26,9 @@ pub(crate) enum Statement {
     Import(String, String, bool, bool),
     /// SELECT statement (projection, account, where clause, group by)
     Select(Projection, Option<String>, Option<Condition>, Option<GroupBy>),
-    UpdateLabel(String, Option<Condition>),
+
+    /// LABEL 100 200 : food -grocery
+    UpdateLabel(Vec<u32>, LabelCommand),
 
     /// INSERT INTO account VALUES (2022-05-20, 'description', -30.0, 'label1, label2'), (2022-05-21, 'description', -32.0)
     Insert(Option<String>, Vec<Record>),
@@ -110,7 +113,7 @@ pub(crate) fn parse(query: &str) -> IResult<&str, Statement> {
         export::export,
         import::import,
         select::select,
-        update::update,
+        update::parse_update,
         insert::parse_insert,
         delete::parse_delete,
     ))(query)
@@ -122,6 +125,10 @@ pub(crate) fn non_space(input: &str) -> IResult<&str, &str> {
 
 pub(crate) fn non_space1(input: &str) -> IResult<&str, &str> {
     input.split_at_position1_complete(char::is_whitespace, ErrorKind::Fail)
+}
+
+pub(crate) fn space_comma1(input: &str) -> IResult<&str, &str> {
+    input.split_at_position1_complete(|c| { !c.is_whitespace() && c != ',' }, ErrorKind::Fail)
 }
 
 fn yyyy_mm_dd_date(input: &str) -> IResult<&str, NaiveDate> {

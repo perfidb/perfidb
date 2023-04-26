@@ -52,9 +52,9 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database) -> Res
                             std::io::stdin().read_line(&mut new_labels)?;
                             let trans_id = transactions[window.selected_transaction_index()].id;
 
-                            let label_ops = db::label_op::parse_label_ops(&new_labels);
-                            if let Ok((_, label_ops)) = label_ops {
-                                db.apply_label_ops(trans_id, label_ops);
+                            let result = db::label_op::parse_label_command(&new_labels);
+                            if let Ok((_, label_cmd)) = result {
+                                db.apply_label_ops(trans_id, label_cmd);
                             }
 
                             transactions[window.selected_transaction_index()].labels = db.find_by_id(trans_id).labels;

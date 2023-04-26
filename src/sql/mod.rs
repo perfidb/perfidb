@@ -3,8 +3,6 @@ mod insert;
 mod copy;
 pub mod parser;
 
-
-
 use crate::{Config, Database};
 
 use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, UpdateLabel};
@@ -26,14 +24,10 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 Select(projection, from, condition, group_by) => {
                     select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
                 }
-                UpdateLabel(labels, condition) => {
-                    if labels.to_ascii_lowercase() == "auto()" {
-                        let auto_labeller = Tagger::new(&Config::load_from_file(auto_label_rules_file));
-                        db.auto_label_new(&auto_labeller, condition);
-                    } else {
-                        let labels: Vec<&str> = labels.split(',').map(|t| t.trim()).collect();
-                        // TODO: find a way to remove old labels
-                        db.set_labels_for_multiple_transactions_new(&labels, condition);
+                UpdateLabel(trans_ids, label_cmd) => {
+                    for trans_id in trans_ids {
+                        // TODO: avoid copying vec multiple times
+                        db.apply_label_ops(trans_id, label_cmd.clone())
                     }
                 }
                 Insert(account, records) => {

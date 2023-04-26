@@ -1,5 +1,5 @@
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag};
+use nom::bytes::complete::{is_not, tag, tag_no_case};
 use nom::character::complete::{char, space0};
 use nom::combinator::opt;
 use nom::IResult;
@@ -7,17 +7,55 @@ use nom::multi::many1;
 use nom::sequence::delimited;
 use crate::sql::parser::non_space1;
 
+/// Represent a labelling command. Currently supporting two types of command.
+/// Manual - manually specifying a list of add / remove labels.
+/// Auto - use auto labelling rule defined in config file.
+#[derive(PartialEq, Debug, Clone)]
+pub(crate) enum LabelCommand {
+    Manual(Vec<LabelOp>),
+
+    /// When auto labelling is specified, all existing labels are wiped out
+    Auto,
+}
+
 /// Represent a labelling operation, i.e. add a label, remove a label
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub(crate) struct LabelOp {
     pub(crate) label: String,
     pub(crate) op: Operation,
 }
 
-#[derive(PartialEq, Debug)]
+impl LabelOp {
+    pub(crate) fn new_add(label: &str) -> LabelOp {
+        LabelOp {
+            label: label.into(),
+            op: Operation::Add
+        }
+    }
+
+    pub(crate) fn new_remove(label: &str) -> LabelOp {
+        LabelOp {
+            label: label.into(),
+            op: Operation::Remove
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub(crate) enum Operation {
     Add,
     Remove,
+}
+
+pub(crate) fn parse_label_command(input: &str) -> IResult<&str, LabelCommand> {
+    let (input, _) = space0(input)?;
+    let (input, auto) = opt(tag_no_case("auto()"))(input)?;
+    if auto.is_some() {
+        return Ok((input, LabelCommand::Auto));
+    }
+
+    let (input, label_ops) = parse_label_ops(input)?;
+    Ok((input, LabelCommand::Manual(label_ops)))
 }
 
 pub(crate) fn parse_label_ops(input: &str) -> IResult<&str, Vec<LabelOp>> {
