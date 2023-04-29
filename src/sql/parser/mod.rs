@@ -45,7 +45,7 @@ pub(crate) enum Projection {
     Sum(GroupBy),
     Count(GroupBy),
     Auto,
-    Id(usize),
+    Id(u32),
 }
 
 #[derive(Debug, PartialEq)]

@@ -9,7 +9,16 @@ use crate::tagger::Tagger;
 
 /// Run an `SELECT` select
 pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, group_by: Option<GroupBy>, auto_label_rules_file: &str) {
-    let mut transactions = db.query(from, condition);
+    let mut transactions = match projection {
+        // If select by transaction id, no need to run query, simply fetch the transaction
+        Projection::Id(trans_id) => match db.search_by_id(trans_id) {
+            Some(t) => vec![t],
+            None => vec![]
+        }
+
+        // Run query
+        _ => db.query(from, condition)
+    };
 
     if let Projection::Auto = projection {
         let tagger = Tagger::new(&Config::load_from_file(auto_label_rules_file));

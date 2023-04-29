@@ -1,6 +1,6 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{alpha1, multispace0, multispace1};
+use nom::character::complete::{alpha1, multispace0, multispace1, u32};
 use nom::combinator::opt;
 use nom::{IResult};
 use nom::Err::Error;
@@ -16,7 +16,7 @@ use crate::sql::parser::condition::where_parser;
 pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("SELECT")(input)?;
     let (input, _) =  multispace1(input)?;
-    let (input, projection) = alt((proj_star, proj_sum, proj_count, proj_auto))(input)?;
+    let (input, projection) = alt((proj_star, proj_sum, proj_count, proj_auto, proj_trans_id))(input)?;
     let (input, account) = opt(from_account)(input)?;
     let (input, condition) = opt(where_parser)(input)?;
     let (input, group_by) = opt(group_by)(input)?;
@@ -58,6 +58,14 @@ fn proj_auto(input: &str) -> IResult<&str, Projection> {
     let (input, _) = tag_no_case("AUTO()")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Projection::Auto))
+}
+
+
+/// SELECT 123
+fn proj_trans_id(input: &str) -> IResult<&str, Projection> {
+    let (input, trans_id) = u32(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Projection::Id(trans_id)))
 }
 
 fn group_by(input: &str) -> IResult<&str, GroupBy> {
