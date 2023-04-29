@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use regex::Regex;
 use toml::Value;
 use crate::Config;
-use crate::transaction::Transaction;
 
-pub(crate) struct Tagger {
+/// Auto labelling service
+pub(crate) struct Labeller {
     label_regex_map: HashMap<String, Vec<Regex>>
 }
 
-impl Tagger {
-    pub(crate) fn new(config: &Config) -> Tagger {
+impl Labeller {
+    pub(crate) fn new(config: &Config) -> Labeller {
         let mut label_regex_map = HashMap::new();
         for (label, value) in &config.labels {
             let mut label_regex_vec = vec![];
@@ -30,16 +30,16 @@ impl Tagger {
             label_regex_map.insert(label.clone(), label_regex_vec);
         }
 
-        Tagger { label_regex_map }
+        Labeller { label_regex_map }
     }
 
-    /// Try label a transaction using supplied label regex table
-    pub(crate) fn label(&self, t: &Transaction) -> Vec<String> {
+    /// Try label a transaction based on given description
+    pub(crate) fn label(&self, description: &str) -> Vec<String> {
         let mut labels = vec![];
 
         for (label, regex_vec) in &self.label_regex_map {
             for regex in regex_vec {
-                if regex.is_match(t.description.as_str()) {
+                if regex.is_match(description) {
                     labels.push(label.clone());
                 }
             }
@@ -48,4 +48,3 @@ impl Tagger {
         labels
     }
 }
-

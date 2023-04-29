@@ -25,7 +25,7 @@ use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
 use crate::sql::parser::{Operator};
-use crate::tagger::Tagger;
+use crate::labeller::Labeller;
 use crate::transaction::Transaction;
 
 /// perfidb binary version
@@ -218,8 +218,8 @@ impl Database {
                     for label_hash in (*transaction.labels).iter() {
                         label_ops.push(LabelOp::new_remove(self.label_minhash.lookup_by_hash(label_hash).unwrap()));
                     }
-                    let tagger = Tagger::new(&Config::load_from_file(auto_label_rules_file));
-                    for new_label in tagger.label(&self.to_transaction(transaction)) {
+                    let tagger = Labeller::new(&Config::load_from_file(auto_label_rules_file));
+                    for new_label in tagger.label(&transaction.description) {
                         label_ops.push(LabelOp::new_add(&new_label));
                     }
 

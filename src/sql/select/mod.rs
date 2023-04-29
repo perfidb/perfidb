@@ -5,7 +5,7 @@ use crate::transaction::Transaction;
 use crate::config::Config;
 use crate::db::Database;
 use crate::sql::parser::{Condition, GroupBy, Projection};
-use crate::tagger::Tagger;
+use crate::labeller::Labeller;
 
 /// Run an `SELECT` select
 pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, group_by: Option<GroupBy>, auto_label_rules_file: &str) {
@@ -21,9 +21,9 @@ pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option
     };
 
     if let Projection::Auto = projection {
-        let tagger = Tagger::new(&Config::load_from_file(auto_label_rules_file));
+        let tagger = Labeller::new(&Config::load_from_file(auto_label_rules_file));
         for t in transactions.iter_mut() {
-            let new_labels = tagger.label(t);
+            let new_labels = tagger.label(&t.description);
             t.labels = new_labels;
         }
     }

@@ -20,7 +20,7 @@ mod csv_reader;
 mod transaction;
 mod sql;
 mod config;
-mod tagger;
+mod labeller;
 mod live_edit;
 
 #[derive(Parser)]
