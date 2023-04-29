@@ -68,7 +68,7 @@ fn main() {
 
     let mut sql_buffer :Vec<String> = vec![];
     loop {
-        let readline = rl.readline("\n# ");
+        let readline = rl.readline("# ");
         match readline {
             Ok(line) => {
                 let line = line.trim();
@@ -77,7 +77,7 @@ fn main() {
                 if sql_buffer.is_empty() {
                     match line.to_ascii_lowercase().as_str() {
                         "exit" => {
-                            info!("\nBye!");
+                            info!("\nBye!\n");
                             break;
                         },
                         "live" => {
@@ -106,7 +106,7 @@ fn main() {
                     let result = parse_and_run_sql(&mut db, sql, &auto_label_rules_file);
 
                     if let Err(err) = result {
-                        println!("{}", err);
+                        error!("{}", err);
                     }
 
                     sql_buffer.clear();

@@ -373,13 +373,20 @@ impl Database {
         self.transactions.get(&id).map(|t| self.to_transaction(t))
     }
 
-    pub(crate) fn delete(&mut self, ids: &[u32]) {
+    pub(crate) fn delete(&mut self, ids: &[u32]) -> u32 {
+        let mut trans_deleted: u32 = 0;
         for trans_id in ids {
-            self.delete_single(*trans_id);
+            if self.delete_single(*trans_id) {
+                trans_deleted += 1;
+            }
         }
+        self.save();
+        trans_deleted
     }
 
-    fn delete_single(&mut self, trans_id: u32) {
+    /// Delete a single transaction. Return true if transaction is found and deleted.
+    /// This function DOES NOT save db. save() must be explicitly called to persist the delete.
+    fn delete_single(&mut self, trans_id: u32) -> bool {
         if let Some(t) = self.transactions.remove(&trans_id) {
             // Remove transaction from date index
             self.date_index.entry(t.date.date()).and_modify(|bitmap| { bitmap.remove(trans_id); });
@@ -391,6 +398,10 @@ impl Database {
 
             // Remove transaction from full text search index
             self.search_index.delete(trans_id, &t.description);
+
+            true
+        } else {
+            false
         }
     }
 

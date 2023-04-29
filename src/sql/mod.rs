@@ -36,7 +36,13 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                     info!("\n{records_count} transactions inserted.");
                 }
                 Delete(trans_ids) => {
-                    db.delete(&trans_ids);
+                    match trans_ids {
+                        Some(trans_ids) => {
+                            let trans_deleted = db.delete(&trans_ids);
+                            info!("{trans_deleted} transactions deleted.");
+                        },
+                        None => info!("Unable to parse transaction IDs to delete, ignore operation.")
+                    }
                 }
             }
         },
@@ -44,6 +50,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
             return Err(e.to_string());
         }
     }
+
+    info!("\n");
 
     Ok(())
 }

@@ -36,7 +36,7 @@ pub(crate) enum Statement {
     Insert(Option<String>, Vec<Record>),
 
     /// DELETE trans_id
-    Delete(Vec<u32>),
+    Delete(Option<Vec<u32>>),
 }
 
 #[derive(Debug, PartialEq)]
