@@ -3,10 +3,9 @@ mod insert;
 mod copy;
 pub mod parser;
 
-use crate::{Config, Database};
+use crate::{Database};
 
-use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, UpdateLabel};
-use crate::tagger::Tagger;
+use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, Label};
 
 pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), String> {
     // First use our own parser to parse
@@ -24,10 +23,10 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 Select(projection, from, condition, group_by) => {
                     select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
                 }
-                UpdateLabel(trans_ids, label_cmd) => {
+                Label(trans_ids, label_cmd) => {
                     for trans_id in trans_ids {
                         // TODO: avoid copying vec multiple times
-                        db.apply_label_ops(trans_id, label_cmd.clone())
+                        db.apply_label_ops(trans_id, label_cmd.clone(), auto_label_rules_file)
                     }
                 }
                 Insert(account, records) => {

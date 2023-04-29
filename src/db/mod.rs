@@ -18,8 +18,9 @@ use crate::common::ResultError;
 use crate::csv_reader::Record;
 use minhash::StringMinHash;
 use sql::parser::Condition;
+use crate::config::Config;
 use crate::db::label_id_vec::LabelIdVec;
-use crate::db::label_op::{LabelCommand};
+use crate::db::label_op::{LabelCommand, LabelOp};
 use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
@@ -184,7 +185,7 @@ impl Database {
     }
 
     /// Applying labelling operations on a transaction
-    pub(crate) fn apply_label_ops(&mut self, trans_id: u32, label_cmd: LabelCommand) {
+    pub(crate) fn apply_label_ops(&mut self, trans_id: u32, label_cmd: LabelCommand, auto_label_rules_file: &str) {
         match label_cmd {
             LabelCommand::Manual(label_ops) => {
                 for op in label_ops {
@@ -212,43 +213,18 @@ impl Database {
             }
 
             LabelCommand::Auto => {
-                // TODO: implement auto
-            }
-        }
-    }
+                if let Some(transaction) = self.transactions.get(&trans_id) {
+                    let mut label_ops: Vec<LabelOp> = vec![];
+                    for label_hash in (*transaction.labels).iter() {
+                        label_ops.push(LabelOp::new_remove(self.label_minhash.lookup_by_hash(label_hash).unwrap()));
+                    }
+                    let tagger = Tagger::new(&Config::load_from_file(auto_label_rules_file));
+                    for new_label in tagger.label(&self.to_transaction(transaction)) {
+                        label_ops.push(LabelOp::new_add(&new_label));
+                    }
 
-
-    pub(crate) fn add_labels(&mut self, trans_id: u32, labels_to_add: &[&str]) {
-        info!("Adding labels {:?} for transaction {}", labels_to_add, trans_id);
-
-        for label in labels_to_add {
-            // Ensure label is in minhash. Get the minhash for this label.
-            let label_id = self.label_minhash.put(label.to_string());
-            let transaction = self.transactions.get_mut(&trans_id).unwrap();
-            // If adding label_id to labels is successful, meaning it doesn't exist before
-            if transaction.labels.add(label_id) {
-                self.label_id_to_transactions.entry(label_id).or_insert(PerfidbRoaringBitmap::new()).insert(transaction.id);
-            }
-        }
-
-        self.save();
-    }
-
-
-    pub(crate) fn auto_label_new(&mut self, auto_labeller: &Tagger, condition: Option<Condition>) {
-        let mut transactions = HashSet::<u32>::new();
-        for trans_id in self.transactions.keys() {
-            transactions.insert(*trans_id);
-        }
-
-        if let Some(condition) = condition {
-            transactions = self.filter_transactions(&transactions, condition);
-        }
-        for trans_id in &transactions {
-            let t = self.transactions.get(trans_id).unwrap();
-            let labels = auto_labeller.label(&self.to_transaction(t));
-            if !labels.is_empty() {
-                self.add_labels(*trans_id, &labels.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+                    self.apply_label_ops(trans_id, LabelCommand::Manual(label_ops), auto_label_rules_file);
+                }
             }
         }
     }

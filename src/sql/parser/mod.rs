@@ -1,7 +1,7 @@
 mod import;
 mod export;
 mod select;
-mod update;
+mod label;
 mod condition;
 mod insert;
 mod delete;
@@ -16,19 +16,21 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{char, digit1, multispace0};
 use nom::error::{Error, ErrorKind};
 use crate::csv_reader::Record;
-use crate::db::label_op::{LabelCommand, LabelOp};
+use crate::db::label_op::{LabelCommand};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Statement {
-    /// EXPORT TO file_path
-    Export(String),
-    /// IMPORT account FROM file_path
-    Import(String, String, bool, bool),
     /// SELECT statement (projection, account, where clause, group by)
     Select(Projection, Option<String>, Option<Condition>, Option<GroupBy>),
 
     /// LABEL 100 200 : food -grocery
-    UpdateLabel(Vec<u32>, LabelCommand),
+    Label(Vec<u32>, LabelCommand),
+
+    /// EXPORT TO file_path
+    Export(String),
+
+    /// IMPORT account FROM file_path
+    Import(String, String, bool, bool),
 
     /// INSERT INTO account VALUES (2022-05-20, 'description', -30.0, 'label1, label2'), (2022-05-21, 'description', -32.0)
     Insert(Option<String>, Vec<Record>),
@@ -110,10 +112,10 @@ impl From<&str> for Operator {
 
 pub(crate) fn parse(query: &str) -> IResult<&str, Statement> {
     alt((
+        select::select,
+        label::parse_label,
         export::export,
         import::import,
-        select::select,
-        update::parse_update,
         insert::parse_insert,
         delete::parse_delete,
     ))(query)

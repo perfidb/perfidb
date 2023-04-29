@@ -71,7 +71,7 @@ fn main() {
                         "exit" => break,
                         "live" => {
                             if let Some(last_results) = &db.last_query_results {
-                                live_edit::live_label(last_results.clone(), &mut db).unwrap();
+                                live_edit::live_label(last_results.clone(), &mut db, &auto_label_rules_file).unwrap();
                             } else {
                                 info!("No recent select results");
                             }
@@ -92,7 +92,7 @@ fn main() {
                     // Remove leading and trailing space and semicolon
                     let pattern :&[_] = &[' ', ';'];
                     let sql = sql.trim_matches(pattern).to_string();
-                    let result = parse_and_run_sql(&mut db, sql, auto_label_rules_file.as_str());
+                    let result = parse_and_run_sql(&mut db, sql, &auto_label_rules_file);
 
                     if let Err(err) = result {
                         println!("{}", err);

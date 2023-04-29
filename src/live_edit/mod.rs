@@ -11,7 +11,7 @@ use crate::transaction::Transaction;
 
 /// Open a terminal dialog to label transactions in a live table
 /// It takes last_query_results as a list of ids because we might change labels, so we'll need to re-render labels.
-pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database) -> Result<(), Error> {
+pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_label_rules_file: &str) -> Result<(), Error> {
     let mut transactions: Vec<Transaction> = last_query_results.iter().map(|trans_id| db.find_by_id(*trans_id)).collect();
 
     execute!(stdout(), EnterAlternateScreen, MoveTo(0, 0))?;
@@ -54,7 +54,7 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database) -> Res
 
                             let result = db::label_op::parse_label_command(&new_labels);
                             if let Ok((_, label_cmd)) = result {
-                                db.apply_label_ops(trans_id, label_cmd);
+                                db.apply_label_ops(trans_id, label_cmd, auto_label_rules_file);
                             }
 
                             transactions[window.selected_transaction_index()].labels = db.find_by_id(trans_id).labels;
