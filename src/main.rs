@@ -6,6 +6,7 @@ use log::{debug, error, info};
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
 use toml::Value;
+use std::io::Write;
 
 extern crate dirs;
 extern crate core;
@@ -38,9 +39,16 @@ struct Cli {
 
 static COMMAND_HISTORY_FILE: &str = ".perfidb_history";
 fn main() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+        // Remove logger formatting
+        .format(|buf, record| writeln!(buf, "{}", record.args()))
+        .init();
 
     let cli :Cli = Cli::parse();
+
+
+    info!("{}", WELCOME_MESSAGE);
+
 
     let mut db = init_and_load_database(&cli.file);
     let auto_label_rules_file = match &cli.auto_label_rules_file {
@@ -60,7 +68,7 @@ fn main() {
 
     let mut sql_buffer :Vec<String> = vec![];
     loop {
-        let readline = rl.readline("# ");
+        let readline = rl.readline("\n# ");
         match readline {
             Ok(line) => {
                 let line = line.trim();
@@ -68,7 +76,10 @@ fn main() {
                 // Check if line is a control command
                 if sql_buffer.is_empty() {
                     match line.to_ascii_lowercase().as_str() {
-                        "exit" => break,
+                        "exit" => {
+                            info!("\nBye!");
+                            break;
+                        },
                         "live" => {
                             if let Some(last_results) = &db.last_query_results {
                                 live_edit::live_label(last_results.clone(), &mut db, &auto_label_rules_file).unwrap();
@@ -125,7 +136,7 @@ fn perfidb_home_path() -> PathBuf {
 
 fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
     if let Some(file_from_cli) = file_from_cli {
-        info!("Loading database from {}", file_from_cli);
+        info!("Loading database from: {}", file_from_cli);
         Database::load(file_from_cli).unwrap()
     } else {
         let perfidb_home_dir = perfidb_home_path();
@@ -141,8 +152,9 @@ fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
 
         let db_file = perfidb_home_dir.join("finance.db");
         if !db_file.exists() {
-            info!("Creating database file in $HOME/.perfidb/finance.db");
-            let db = Database::new(db_file.as_path().display().to_string());
+            let db_file_path = db_file.as_path().display().to_string();
+            info!("Creating database file in {}", db_file_path);
+            let db = Database::new(db_file_path);
             db.save();
         }
 
@@ -158,3 +170,13 @@ fn create_auto_label_rules_example(perfidb_home_dir: &Path) {
     let toml_text = toml::to_string(&config).unwrap();
     fs::write(perfidb_home_dir.join("auto_label_rules.toml.example"), toml_text).expect("Could not create auto_label_rules.toml.example");
 }
+
+static WELCOME_MESSAGE: &'static str = r#"
++-----------------------------------------------------+
+|                                                     |
+| Welcome to PerfiDB                                  |
+|                                                     |
+| For usage visit: https://github.com/perfidb/perfidb |
+| To exit, use command 'exit'                         |
++-----------------------------------------------------+
+"#;

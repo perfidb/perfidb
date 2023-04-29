@@ -11,7 +11,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::path::Path;
 
 use chrono::{NaiveDate, NaiveDateTime};
-use log::info;
+use log::{debug};
 use serde::{Deserialize, Serialize};
 use crate::common::ResultError;
 
@@ -102,7 +102,8 @@ impl Database {
             let mut buffer = vec![0; metadata_len as usize];
             file.read_exact(&mut buffer)?;
             let metadata: Metadata = bincode::deserialize(&buffer)?;
-            info!("Database version {}", metadata.version);
+
+            debug!("Database metadata version {}", metadata.version);
 
             file.seek(SeekFrom::Start(1024))?;
             let mut buffer: Vec<u8> = vec![];

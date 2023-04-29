@@ -3,7 +3,7 @@ use std::ops::Index;
 use std::path::Path;
 use chrono::{NaiveDate, NaiveDateTime};
 use csv::StringRecord;
-use log::{info};
+use log::{debug};
 use regex::Regex;
 use crate::csv_reader::column::ColumnInfo;
 
@@ -50,7 +50,7 @@ pub(crate) fn read_transactions(table_name :&str, file_path: &Path, inverse_amou
 
     let column_info = match &header_row {
         Some(header_row) => {
-            info!("Header row detected");
+            debug!("Header row detected");
             column::parse_csv_column_with_header(header_row)?
         },
         None => {

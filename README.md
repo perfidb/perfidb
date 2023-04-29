@@ -33,6 +33,9 @@ Run `perfidb` command and specify a new database file:
 perfidb myfinance.db
 ```
 
+### Running a query
+A query should end with a semicolon `;`. A query can extend to multiple lines, the last line has to end with a semicolon.
+
 ### Import transactions
 To import transactions from a csv file into account _amex_gold_
 ```sql
@@ -41,7 +44,7 @@ IMPORT amex_gold FROM 'bank-exports/2022-03.csv';
 
 To print out records from csv file without actually saving to database, specify dry-run:
 ```sql
-IMPORT amex_gold FROM 'bank-exports/2022-03.csv' (dryrun)
+IMPORT amex_gold FROM 'bank-exports/2022-03.csv' (dryrun);
 ```
 
 If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
@@ -49,14 +52,14 @@ If you are wondering how are CSV files parsed, see _How are CSV files parsed_ se
 ### Export transactions
 To export all transactions to a CSV file
 ```sql
-EXPORT TO '/home/ren/all_trans.csv'
+EXPORT TO '/home/ren/all_trans.csv';
 ```
 
 To export transactions from a specific account to a CSV file
 
 (Note: note implemented at the moment)
 ```sql
-EXPORT amex TO './amex.csv'
+EXPORT amex TO './amex.csv';
 ```
 
 ### Query
@@ -111,7 +114,7 @@ SELECT 1234;
 ```sql
 INSERT INTO amex VALUES
   ('2023-02-21', 'food', -45.0),
-  ('2023-02-23', 'salary', 500)
+  ('2023-02-23', 'salary', 500);
 ```
 
 ## Live mode

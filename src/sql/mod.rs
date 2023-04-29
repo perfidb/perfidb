@@ -3,6 +3,7 @@ mod insert;
 mod copy;
 pub mod parser;
 
+use log::info;
 use crate::{Database};
 
 use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, Label};
@@ -28,9 +29,11 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                         // TODO: avoid copying vec multiple times
                         db.apply_label_ops(trans_id, label_cmd.clone(), auto_label_rules_file)
                     }
+                    info!("\nLabel operations completed.")
                 }
                 Insert(account, records) => {
-                    insert::execute_insert(db, account, records);
+                    let records_count = insert::execute_insert(db, account, records);
+                    info!("\n{records_count} transactions inserted.");
                 }
                 Delete(trans_ids) => {
                     db.delete(&trans_ids);
