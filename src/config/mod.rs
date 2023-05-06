@@ -16,7 +16,7 @@ impl Config {
     pub(crate) fn load_from_file(file_path: &str) -> Config {
         let path = Path::new(file_path);
         if path.exists() && path.is_file() {
-            let config :Config = toml::from_slice::<Config>(&fs::read(path).unwrap()).unwrap();
+            let config :Config = toml::from_str::<Config>(&fs::read_to_string(path).unwrap()).unwrap();
             config
         } else {
             Config::empty()

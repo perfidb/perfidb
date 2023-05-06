@@ -59,7 +59,7 @@ fn main() {
         }
     };
 
-    let mut rl = Editor::<()>::new().expect("Unable to create terminal editor");
+    let mut rl = rustyline::DefaultEditor::new().expect("Unable to create terminal editor");
 
     let command_history_file: PathBuf = perfidb_home_path().join(COMMAND_HISTORY_FILE);
     if rl.load_history(command_history_file.as_path()).is_err() {
