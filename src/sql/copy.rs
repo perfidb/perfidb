@@ -4,6 +4,7 @@ use csv::{WriterBuilder};
 use log::{info};
 use walkdir::WalkDir;
 use crate::{csv_reader, Database};
+use crate::sql::parser::OrderBy;
 
 /// Import transactions from a file
 pub(crate) fn execute_import(db : &mut Database, account :&str, file_path :&str, inverse_amount: bool, dry_run: bool) {
@@ -53,7 +54,7 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
 
 /// Export transactions to a file
 pub(crate) fn execute_export_db(db : &mut Database, file_path :&str) {
-    let transactions = db.query(None, None);
+    let transactions = db.query(None, None, OrderBy::date(), None);
     let mut csv_writer = WriterBuilder::new().has_headers(true).from_path(file_path).unwrap();
     for t in transactions {
         csv_writer.serialize(t).unwrap();

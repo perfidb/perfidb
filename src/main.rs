@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use env_logger::Env;
 use log::{debug, error, info};
-use rustyline::Editor;
 use rustyline::error::ReadlineError;
 use toml::Value;
 use std::io::Write;

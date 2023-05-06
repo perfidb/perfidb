@@ -4,11 +4,19 @@ use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
 use crate::transaction::Transaction;
 use crate::config::Config;
 use crate::db::Database;
-use crate::sql::parser::{Condition, GroupBy, Projection};
+use crate::sql::parser::{Condition, GroupBy, OrderBy, Projection};
 use crate::labeller::Labeller;
 
 /// Run an `SELECT` select
-pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option<String>, condition: Option<Condition>, group_by: Option<GroupBy>, auto_label_rules_file: &str) {
+pub(crate) fn run_select(
+    db: &mut Database,
+    projection: Projection,
+    from: Option<String>,
+    condition: Option<Condition>,
+    order_by: OrderBy,
+    limit: Option<usize>,
+    group_by: Option<GroupBy>,
+    auto_label_rules_file: &str) {
     let mut transactions = match projection {
         // If select by transaction id, no need to run query, simply fetch the transaction
         Projection::Id(trans_id) => match db.search_by_id(trans_id) {
@@ -17,7 +25,7 @@ pub(crate) fn run_select(db: &mut Database, projection: Projection, from: Option
         }
 
         // Run query
-        _ => db.query(from, condition)
+        _ => db.query(from, condition, order_by, limit)
     };
 
     if let Projection::Auto = projection {

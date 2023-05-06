@@ -24,7 +24,7 @@ use crate::db::label_op::{LabelCommand, LabelOp};
 use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
 use crate::sql;
-use crate::sql::parser::{Operator};
+use crate::sql::parser::{Operator, OrderBy, OrderByField};
 use crate::labeller::Labeller;
 use crate::transaction::Transaction;
 
@@ -341,7 +341,7 @@ impl Database {
     }
 
     /// The new select implementation
-    pub(crate) fn query(&mut self, from: Option<String>, condition: Option<Condition>) -> Vec<Transaction> {
+    pub(crate) fn query(&mut self, from: Option<String>, condition: Option<Condition>, order_by: OrderBy, limit: Option<usize>) -> Vec<Transaction> {
         let mut trans :HashSet<u32> = match from {
             None => self.transactions.keys().cloned().collect::<HashSet<u32>>(),
             Some(account) => self.transactions.values().filter(|t| account == t.account).map(|t| t.id).collect()
@@ -352,9 +352,28 @@ impl Database {
         }
 
         let mut trans :Vec<&TransactionRecord> = trans.iter().map(|id| self.transactions.get(id).unwrap()).collect();
-        trans.sort_by(|a, b| {
-            a.date.partial_cmp(&b.date).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
-        });
+        match order_by.field {
+            OrderByField::Date => {
+                trans.sort_by(|a, b| {
+                    a.date.partial_cmp(&b.date).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
+                });
+            }
+            OrderByField::Amount => {
+                trans.sort_by(|a, b| {
+                    a.amount.partial_cmp(&b.amount).unwrap().then(a.id.partial_cmp(&b.id).unwrap())
+                });
+            }
+        }
+        if order_by.desc {
+            trans.reverse();
+        }
+
+        // If we want to limit number of transactions returned
+        if let Some(limit) = limit {
+            if limit > 0 && limit < trans.len() {
+                trans.drain(limit..);
+            }
+        }
 
         let results :Vec<Transaction> = trans.iter().map(|t| self.to_transaction(t)).collect();
         if !results.is_empty() {

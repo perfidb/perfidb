@@ -20,8 +20,8 @@ use crate::db::label_op::{LabelCommand};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Statement {
-    /// SELECT statement (projection, account, where clause, group by)
-    Select(Projection, Option<String>, Option<Condition>, Option<GroupBy>),
+    /// SELECT statement (projection, account, where clause, order by, limit, group by)
+    Select(Projection, Option<String>, Option<Condition>, OrderBy, Option<usize>, Option<GroupBy>),
 
     /// LABEL 100 200 : food -grocery
     Label(Vec<u32>, LabelCommand),
@@ -37,6 +37,10 @@ pub(crate) enum Statement {
 
     /// DELETE trans_id
     Delete(Option<Vec<u32>>),
+}
+
+impl Statement {
+
 }
 
 #[derive(Debug, PartialEq)]
@@ -66,6 +70,27 @@ pub(crate) enum Condition {
     Label(Operator, String),
     And(Box<(Condition, Condition)>),
     Or(Box<(Condition, Condition)>),
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum OrderByField {
+    Date,
+    Amount,
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) struct OrderBy {
+    pub(crate) field: OrderByField,
+    pub(crate) desc: bool
+}
+
+impl OrderBy {
+    pub(crate) fn date() -> OrderBy {
+        OrderBy {
+            field: OrderByField::Date,
+            desc: false
+        }
+    }
 }
 
 impl Condition {

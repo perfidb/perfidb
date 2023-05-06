@@ -25,7 +25,7 @@ fn parse_trans_id(input: &str) -> IResult<&str, u32> {
 #[cfg(test)]
 mod tests {
     use crate::db::label_op::{LabelCommand, LabelOp};
-    use crate::sql::parser::{Condition, Operator, Statement};
+    use crate::sql::parser::{Operator, Statement};
     use crate::sql::parser::label::parse_label;
 
     #[test]

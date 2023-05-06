@@ -21,8 +21,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 Import(account, file_path, inverse_amount, dryrun) => {
                     copy::execute_import(db, &account, &file_path, inverse_amount, dryrun);
                 }
-                Select(projection, from, condition, group_by) => {
-                    select::run_select(db, projection, from, condition, group_by, auto_label_rules_file);
+                Select(projection, from, condition, order_by, limit, group_by) => {
+                    select::run_select(db, projection, from, condition, order_by, limit, group_by, auto_label_rules_file);
                 }
                 Label(trans_ids, label_cmd) => {
                     for trans_id in trans_ids {
