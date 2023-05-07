@@ -91,6 +91,13 @@ impl OrderBy {
             desc: false
         }
     }
+
+    pub(crate) fn amount_desc() -> OrderBy {
+        OrderBy {
+            field: OrderByField::Amount,
+            desc: true
+        }
+    }
 }
 
 impl Condition {
