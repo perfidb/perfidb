@@ -12,6 +12,7 @@ use std::path::Path;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use log::{debug};
+use roaring::MultiOps;
 use serde::{Deserialize, Serialize};
 use crate::common::ResultError;
 
@@ -241,7 +242,8 @@ impl Database {
                 if self.search_by_id(id).is_some() {
                     trans.insert(id);
                 }
-                trans
+
+                transactions.intersection(&trans).cloned().collect()
             }
 
             Condition::Spending(op, spending) => {
@@ -296,7 +298,7 @@ impl Database {
             }
 
             Condition::Label(op, label) => {
-                match op {
+                let trans_with_label = match op {
                     Operator::Eq => {
                         match self.label_minhash.lookup_by_string(label) {
                             Some(label_id) => self.label_id_to_transactions.get(&label_id).unwrap().iter().collect::<HashSet<u32>>(),
@@ -313,7 +315,9 @@ impl Database {
                     }
 
                     _ => HashSet::new()
-                }
+                };
+
+                transactions.intersection(&trans_with_label).cloned().collect::<HashSet<u32>>()
             }
 
             Condition::Date(_op, date_range) => {
@@ -323,19 +327,20 @@ impl Database {
                         trans_in_date_range.insert(id);
                     }
                 }
-                trans_in_date_range
+
+                transactions.intersection(&trans_in_date_range).cloned().collect::<HashSet<u32>>()
             }
 
             Condition::And(sub_conditions) => {
                 let c1_result = self.filter_transactions(transactions, (*sub_conditions).0);
                 let c2_result = self.filter_transactions(transactions, (*sub_conditions).1);
-                c1_result.intersection(&c2_result).cloned().collect()
+                c1_result.intersection(&c2_result).cloned().collect::<HashSet<u32>>().intersection(&transactions).cloned().collect()
             }
 
             Condition::Or(sub_conditions) => {
                 let c1_result = self.filter_transactions(transactions, (*sub_conditions).0);
                 let c2_result = self.filter_transactions(transactions, (*sub_conditions).1);
-                c1_result.union(&c2_result).cloned().collect()
+                c1_result.union(&c2_result).cloned().collect::<HashSet<u32>>().intersection(&transactions).cloned().collect()
             }
         }
     }
