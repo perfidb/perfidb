@@ -6,7 +6,7 @@ use nom::{IResult};
 use nom::Err::Error;
 use nom::error::ErrorKind;
 
-use crate::sql::parser::{GroupBy, non_space, OrderBy, OrderByField, Projection, Statement};
+use crate::sql::parser::{Condition, GroupBy, LogicalOperator, non_space, Operator, OrderBy, OrderByField, Projection, Statement};
 use crate::sql::parser::condition::where_parser;
 
 /// Match `SELECT` statements. This is still working-in-progress. We are trying to migrate
@@ -16,9 +16,29 @@ use crate::sql::parser::condition::where_parser;
 pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("SELECT")(input)?;
     let (input, _) =  multispace1(input)?;
-    let (input, projection) = alt((proj_star, proj_sum, proj_count, proj_auto, proj_trans_id))(input)?;
+
+    // Check if there are special 'where condition' specified here as a projection.
+    // E.g. user can do 'SELECT spending WHERE date = 7', it is a shortcut syntax for 'SELECT * WHERE date = 7 AND spending >= 0'
+    let (input, projection_condition) = opt(alt((parse_implied_where_spending, parse_implied_where_income)))(input)?;
+
+    // Now we can parse real projection
+    let (input, projection) = match projection_condition {
+        // If no projection condition found in previous step
+        None => alt((proj_star, proj_sum, proj_count, proj_auto, proj_trans_id))(input)?,
+        // If projection condition found in previous step we treat projection as SELECT *
+        Some(_) => (input, Projection::Star)
+    };
+
     let (input, account) = opt(from_account)(input)?;
     let (input, condition) = opt(where_parser)(input)?;
+    let condition = match condition {
+        None => projection_condition,
+        Some(where_condition) => match projection_condition {
+            None => Some(where_condition),
+            Some(projection_condition) => Some(Condition::from_logical(&LogicalOperator::And, where_condition, projection_condition))
+        }
+    };
+
     let (input, _) =  multispace0(input)?;
     let (input, order_by) = parse_order_by(input)?;
     let (input, _) =  multispace0(input)?;
@@ -26,6 +46,20 @@ pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
     let (input, _) =  multispace0(input)?;
     let (input, group_by) = opt(group_by)(input)?;
     Ok((input, Statement::Select(projection, account, condition, order_by, limit, group_by)))
+}
+
+/// If we see 'SELECT spending ...' it is an implied where clause, need to add to other where clauses later.
+fn parse_implied_where_spending(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("spending")(input)?;
+    let (input, _) =  multispace0(input)?;
+    Ok((input, Condition::Spending(Operator::GtEq, 0.0)))
+}
+
+/// If we see 'SELECT income ...' it is an implied where clause, need to add to other where clauses later.
+fn parse_implied_where_income(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("income")(input)?;
+    let (input, _) =  multispace0(input)?;
+    Ok((input, Condition::Income(Operator::GtEq, 0.0)))
 }
 
 /// FROM account
@@ -131,6 +165,10 @@ mod tests {
         let query = "select  * ";
         let result = select(query);
         assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, None, OrderBy::date(), None, None))));
+
+        let query = "select income order by amount DESC";
+        let result = select(query);
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, Some(Condition::Income(Operator::Gt, 0.0)), OrderBy::amount_desc(), None, None))));
 
         let query = "SELECT * FROM amex-plat LIMIT 5";
         let result = select(query);

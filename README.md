@@ -15,7 +15,7 @@ IMPORT amex FROM 'bank-exports/2022-03.csv';
 SELECT * ;
 
 -- List transactions from account 'amex'
-SELECT * FROM amex;
+SELECT spending FROM amex;
 
 -- Add two labels (grocery, bread) to all transactions in July containing description text 'bakehouse'
 LABEL WHERE date = 2022-07 AND description LIKE 'bakehouse'  grocery bread;
@@ -67,6 +67,13 @@ EXPORT amex TO './amex.csv';
 #### From all accounts
 ```sql
 SELECT *;
+```
+
+#### Show only spending or income
+```sql
+SELECT spending;
+
+SELECT income;
 ```
 
 #### From specific account
