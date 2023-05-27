@@ -119,10 +119,41 @@ fn detect_header_row(csv_path: &Path) -> Option<StringRecord> {
 
     let has_header = has_second_row
         && match_header_pattern
-        && first_row.get(0).unwrap().len() != second_row.get(0).unwrap().len();
+        && !have_column_with_same_digits_count(&first_row, &second_row);
 
     if has_header { Some(first_row) } else { None }
 }
+
+/// Check if there is a column that both first and second rows contain digits and the number of
+/// digits are >= 6 and the number of digits are the same.
+fn have_column_with_same_digits_count(first_row: &StringRecord, second_row: &StringRecord) -> bool {
+    if first_row.len() != second_row.len() {
+        return false;
+    }
+
+    for (i, value) in first_row.iter().enumerate() {
+        let first_row_count = count_digits(value);
+        if first_row_count >= 6 && first_row_count == count_digits(second_row.index(i)) {
+            println!("{:?} {i}", first_row);
+            println!("{:?}", second_row);
+            return true;
+        }
+    }
+
+    false
+}
+
+fn count_digits(s: &str) -> u32 {
+    let mut count = 0;
+    for c in s.chars() {
+        // If c is a digit, i.e. 0..9
+        if c as u32 >= 48 && c as u32 <= 57 {
+            count += 1;
+        }
+    }
+    count
+}
+
 
 fn parse_date(s :&str) -> NaiveDateTime {
     let yyyymmdd_t_hhmmss = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$").unwrap();

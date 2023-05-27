@@ -10,20 +10,25 @@ use crate::sql::parser::OrderBy;
 pub(crate) fn execute_import(db : &mut Database, account :&str, file_path :&str, inverse_amount: bool, dry_run: bool) {
     let file_path = Path::new(file_path);
     if file_path.is_dir() {
+        info!("Parsing csv files from {} ...",file_path.display());
         for entry in WalkDir::new(file_path).into_iter() {
             let dir_entry = entry.unwrap();
-            if dir_entry.path().is_file() && !dir_entry.file_name().to_str().unwrap().starts_with('.') {
-                info!("Copying from {}", dir_entry.path().display());
+            if dir_entry.path().is_file() && dir_entry.file_name().to_str().unwrap().to_lowercase().ends_with(".csv") {
                 copy_from_csv(dir_entry.path(), db, account, inverse_amount, dry_run);
             }
         }
     } else if file_path.is_file() {
-        info!("Copying from {}", file_path.display());
         copy_from_csv(file_path, db, account, inverse_amount, dry_run);
     }
 }
 
 fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool, dry_run: bool) {
+    if dry_run {
+        info!("Dry run. Printing transactions from {}", path.display());
+    } else {
+        info!("Importing transactions from {}", path.display());
+    }
+
     let result = csv_reader::read_transactions(table_name, path, inverse_amount);
     match result {
         Ok(records) => {
@@ -38,6 +43,7 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
                     table.add_row(vec![r.account.as_str(), r.date.to_string().as_str(), r.description.as_str(), format!("{:.2}", r.amount).as_str()]);
                 }
                 println!("{table}");
+                info!("This is a dry-run. Transactions are not imported");
             } else {
                 for r in &records {
                     db.upsert(r);
