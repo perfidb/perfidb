@@ -1,53 +1,93 @@
-# PerfiDB
+# What is PerfiDB
 
-PerfiDB is a SQL database engineered specifically to store and manage personal finance data. The main features include:
+PerfiDB is a simple database engineered specifically to store and manage personal finance data. The main features include:
+- Using intuitive and elegant SQL-like language to query your transactions
+- Full text search in your transaction description
+- Intelligently parsing Internet banking statements, it understands the date, amount, and description columns
+- A simple yet powerful labelling system, think about Gmail labels for your bank transactions.
+- Keeping your sensitive personal finance data locally on your computer
 
-- A simple yet powerful labelling system. (Think about Gmail labels for your bank transactions)
-- Intuitive and concise SQL statements to manage your money
 
+# Quick tour
+### Launch
+```bash
+perfidb
+```
+Database file will be created under `$HOME/.perfidb/finance.db`
 
-# Examples
+### Import transactions
 ```sql
 -- Import transactions to account 'amex' from a csv file
 IMPORT amex FROM 'bank-exports/2022-03.csv';
+```
 
+### Query
+```sql    
 -- List all transactions
-SELECT * ;
+SELECT *;
 
--- List transactions from account 'amex'
+-- List all spending from account 'amex'
 SELECT spending FROM amex;
 
--- Add two labels (grocery, bread) to all transactions in July containing description text 'bakehouse'
-LABEL WHERE date = 2022-07 AND description LIKE 'bakehouse'  grocery bread;
+-- List all spending with the word 'paypal' in description
+SELECT spending WHERE description = 'paypal';
+
+-- Add two labels (grocery, bread) to transaction 128
+LABEL 128 grocery bread;
 
 -- List all transactions labelled with 'grocery'.
 SELECT * WHERE label = 'grocery';
 ```
 
-# How to use PerfiDB
-A common use case is to export transactions from your banks and run SQL `COPY` statement to load them into PerfiDB.
+# User guide
+## Install
+### Install on macOS
+```
+brew install perfidb/tap/perfidb
+```
 
-### Launch
-Run `perfidb` command and specify a new database file:
+### Linux & Windows
+Install script will be published in near future. Please build form source for now.
+
+## Launch
 ```
-perfidb myfinance.db
+perfidb
 ```
+By default the database file will be created under `$HOME/.perfidb/finance.db`. To specify a different location
+you can run:
+```
+perfidb -f myfinance.db
+```
+
+### Exit
+To exit PerfiDB you can either press `Ctrl + C` or type in the command `exit` 
 
 ### Running a query
 A query should end with a semicolon `;`. A query can extend to multiple lines, the last line has to end with a semicolon.
 
 ### Import transactions
-To import transactions from a csv file into account _amex_gold_
+To import transactions from a csv file into account _amex-gold_
 ```sql
-IMPORT amex_gold FROM 'bank-exports/2022-03.csv';
+IMPORT amex-gold FROM 'bank-exports/2022-03.csv';
 ```
 
 To print out records from csv file without actually saving to database, specify dry-run:
 ```sql
-IMPORT amex_gold FROM 'bank-exports/2022-03.csv' (dryrun);
+IMPORT amex-gold FROM 'bank-exports/2022-03.csv' (dryrun);
 ```
 
 If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
+
+### Spending & Income
+By default transactions with negative amount (e.g. -35.7) is considered as _spending_ and transactions with 
+positive amount _income_. Some bank statements are the opposite, e.g. American Express. When important statements
+with positive amount (e.g. 50.95) as spending you need to specify the `inverse` flag, e.g.
+```sql
+IMPORT amex FROM 'bank-exports/2022-03.csv' (inverse);
+
+-- You can also add dryrun option to check the amount before importing
+IMPORT amex FROM 'bank-exports/2022-03.csv' (inverse dryrun);    
+```
 
 ### Export transactions
 To export all transactions to a CSV file
@@ -57,7 +97,7 @@ EXPORT TO '/home/ren/all_trans.csv';
 
 To export transactions from a specific account to a CSV file
 
-(Note: note implemented at the moment)
+(Note: not implemented at the moment)
 ```sql
 EXPORT amex TO './amex.csv';
 ```
@@ -109,12 +149,26 @@ LABEL 100 101 food dining;
 LABEL 100, 101 auto();
 ```
 
+#### Amount
+```sql
+SELECT * WHERE spending > 100;
+
+SELECT * WHERE income > 100;
+
+SELECT * WHERE amount < -50;
+```
+
 ##### Transaction ID
 ```sql
 SELECT * WHERE id = 1234;
 
 -- or simply
 SELECT 1234;
+```
+
+##### Logical operator AND, OR
+```sql
+SELECT * WHERE spending > 100 AND label = 'grocery';
 ```
 
 ### INSERT
