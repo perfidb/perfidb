@@ -7,6 +7,9 @@ PerfiDB is a simple database engineered specifically to store and manage persona
 - A simple yet powerful labelling system, think about Gmail labels for your bank transactions.
 - Keeping your sensitive personal finance data locally on your computer
 
+## How to get help
+- Ask questions in the Discord channel: https://discord.gg/Yg2cStNC
+- Create issues in Github
 
 # Quick tour
 ### Launch
