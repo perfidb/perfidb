@@ -62,10 +62,10 @@ perfidb -f myfinance.db
 ### Exit
 To exit PerfiDB you can either press `Ctrl + C` or type in the command `exit` 
 
-### Running a query
+## Running a query
 A query should end with a semicolon `;`. A query can extend to multiple lines, the last line has to end with a semicolon.
 
-### Import transactions
+## Import transactions
 To import transactions from a csv file into account _amex-gold_
 ```sql
 IMPORT amex-gold FROM 'bank-exports/2022-03.csv';
@@ -78,7 +78,7 @@ IMPORT amex-gold FROM 'bank-exports/2022-03.csv' (dryrun);
 
 If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
 
-### Spending & Income
+## Spending & Income
 By default transactions with negative amount (e.g. -35.7) is considered as _spending_ and transactions with 
 positive amount _income_. Some bank statements are the opposite, e.g. American Express. When important statements
 with positive amount (e.g. 50.95) as spending you need to specify the `inverse` flag, e.g.
@@ -89,7 +89,7 @@ IMPORT amex FROM 'bank-exports/2022-03.csv' (inverse);
 IMPORT amex FROM 'bank-exports/2022-03.csv' (inverse dryrun);    
 ```
 
-### Export transactions
+## Export transactions
 To export all transactions to a CSV file
 ```sql
 EXPORT TO '/home/ren/all_trans.csv';
@@ -102,27 +102,27 @@ To export transactions from a specific account to a CSV file
 EXPORT amex TO './amex.csv';
 ```
 
-### Query
+## Query
 
-#### From all accounts
+### From all accounts
 ```sql
 SELECT *;
 ```
 
-#### Show only spending or income
+### Show only spending or income
 ```sql
 SELECT spending;
 
 SELECT income;
 ```
 
-#### From specific account
+### From specific account
 ```sql
 SELECT * FROM amex;
 ```
 
-#### Filters
-##### Dates
+### Filters
+#### Dates
 ```sql
 -- Filter by month, i.e. 7 means July. If current date has passed July it means July of current year,
 -- if current date is before end of July it means July of previous year.
@@ -135,7 +135,7 @@ SELECT * WHERE date = 2022-07;
 SELECT * WHERE date = 2022-07-31;
 ```
 
-##### Labels
+#### Labels
 ```sql
 SELECT * WHERE label = 'grocery';
 
@@ -158,7 +158,7 @@ SELECT * WHERE income > 100;
 SELECT * WHERE amount < -50;
 ```
 
-##### Transaction ID
+#### Transaction ID
 ```sql
 SELECT * WHERE id = 1234;
 
@@ -166,17 +166,24 @@ SELECT * WHERE id = 1234;
 SELECT 1234;
 ```
 
-##### Logical operator AND, OR
+#### Logical operator AND, OR
 ```sql
 SELECT * WHERE spending > 100 AND label = 'grocery';
 ```
 
-### INSERT
+## Insert transactions manually
 ```sql
 INSERT INTO amex VALUES
   ('2023-02-21', 'food', -45.0),
   ('2023-02-23', 'salary', 500);
 ```
+
+## Delete transaction
+```sql
+-- delete by transaction ids
+DELETE 345 346;
+```
+
 
 ## Live mode
 Sometimes you might want to label transactions directly as if operating a spreadsheet, without using SQL. The **live** mode allows you to do exactly that. To switch to live mode, type command `live`, without semicolon.
