@@ -92,8 +92,8 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
         // SELECT SUM(*) FROM
         // SELECT COUNT(*) FROM
-        Projection::Sum(_) => is_sum = true,
-        Projection::Count(_) => is_count = true,
+        Projection::Sum => is_sum = true,
+        Projection::Count => is_count = true,
         Projection::Auto => {
             is_normal_select = true;
             is_auto_labelling = true;
@@ -126,8 +126,6 @@ fn handle_normal_select(transactions: &[Transaction], table: &mut Table, project
 
     println!("{table}");
 }
-
-
 
 
 fn set_cell_style(t: &Transaction, cell: Cell, is_tagging: bool) -> Cell {

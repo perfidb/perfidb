@@ -46,8 +46,8 @@ impl Statement {
 #[derive(Debug, PartialEq)]
 pub(crate) enum Projection {
     Star,
-    Sum(GroupBy),
-    Count(GroupBy),
+    Sum,
+    Count,
     Auto,
     Id(u32),
 }

@@ -174,6 +174,26 @@ SELECT 1234;
 SELECT * WHERE spending > 100 AND label = 'grocery';
 ```
 
+### SUM, COUNT
+Get subtotal of spending or income
+```sql
+SELECT SUM(spending) WHERE date = 2023-03;
+
+SELECT SUM(income) WHERE date = 2023-03;
+```
+
+Get subtotal of both spending and income in March
+```sql
+SELECT SUM(*) WHERE date = 2023-03;
+```
+
+Count number of transactions
+```sql
+SELECT COUNT(spending) WHERE date = 2023-03;
+SELECT COUNT(income) WHERE date = 2023-03;
+SELECT COUNT(*) WHERE date = 2023-03;
+```
+
 ## Insert transactions manually
 ```sql
 INSERT INTO amex VALUES

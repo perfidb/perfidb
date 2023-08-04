@@ -1,10 +1,11 @@
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{alpha1, multispace0, multispace1, u32};
+use nom::bytes::complete::{is_not, tag_no_case};
+use nom::character::complete::{alpha1, char, multispace0, multispace1, u32};
 use nom::combinator::opt;
 use nom::{IResult};
 use nom::Err::Error;
 use nom::error::ErrorKind;
+use nom::sequence::delimited;
 
 use crate::sql::parser::{Condition, GroupBy, LogicalOperator, non_space, Operator, OrderBy, OrderByField, Projection, Statement};
 use crate::sql::parser::condition::where_parser;
@@ -19,23 +20,24 @@ pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
 
     // Check if there are special 'where condition' specified here as a projection.
     // E.g. user can do 'SELECT spending WHERE date = 7', it is a shortcut syntax for 'SELECT * WHERE date = 7 AND spending >= 0'
-    let (input, projection_condition) = opt(alt((parse_implied_where_spending, parse_implied_where_income)))(input)?;
-
-    // Now we can parse real projection
-    let (input, projection) = match projection_condition {
-        // If no projection condition found in previous step
-        None => alt((proj_star, proj_sum, proj_count, proj_auto, proj_trans_id))(input)?,
-        // If projection condition found in previous step we treat projection as SELECT *
-        Some(_) => (input, Projection::Star)
-    };
+    // let (input, projection_condition) = opt(alt((parse_implied_where_spending, parse_implied_where_income)))(input)?;
+    let (input, (projection, implied_condition)) = alt((
+        parse_star,
+        parse_sum,
+        parse_count,
+        parse_implied_where_spending,
+        parse_implied_where_income,
+        parse_auto,
+        parse_trans_id
+    ))(input)?;
 
     let (input, account) = opt(from_account)(input)?;
     let (input, condition) = opt(where_parser)(input)?;
     let condition = match condition {
-        None => projection_condition,
-        Some(where_condition) => match projection_condition {
+        None => implied_condition,
+        Some(where_condition) => match implied_condition {
             None => Some(where_condition),
-            Some(projection_condition) => Some(Condition::from_logical(&LogicalOperator::And, where_condition, projection_condition))
+            Some(implied_condition) => Some(Condition::from_logical(&LogicalOperator::And, where_condition, implied_condition))
         }
     };
 
@@ -48,18 +50,63 @@ pub(crate) fn select(input: &str) -> IResult<&str, Statement> {
     Ok((input, Statement::Select(projection, account, condition, order_by, limit, group_by)))
 }
 
+/// SUM(*), SUM(spending), SUM(income)
+fn parse_sum(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
+    let (input, _) = tag_no_case("SUM")(input)?;
+    let (input, sum_arg) = delimited(char('('), is_not(")"), char(')'))(input)?;
+    let (input, _) =  multispace0(input)?;
+    match sum_arg.to_lowercase().as_str() {
+        "spending" => Ok((input, (Projection::Sum, Some(Condition::Spending(Operator::GtEq, 0.0))))),
+        "income" => Ok((input, (Projection::Sum, Some(Condition::Income(Operator::GtEq, 0.0))))),
+        _ => Ok((input, (Projection::Sum, None)))
+    }
+}
+
+/// COUNT(*), COUNT(spending), COUNT(income)
+fn parse_count(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
+    let (input, _) = tag_no_case("COUNT")(input)?;
+    let (input, count_arg) = delimited(char('('), is_not(")"), char(')'))(input)?;
+    let (input, _) =  multispace0(input)?;
+    match count_arg.to_lowercase().as_str() {
+        "spending" => Ok((input, (Projection::Count, Some(Condition::Spending(Operator::GtEq, 0.0))))),
+        "income" => Ok((input, (Projection::Count, Some(Condition::Income(Operator::GtEq, 0.0))))),
+        _ => Ok((input, (Projection::Count, None)))
+    }
+}
+
+/// Normal projection, SELECT * ...
+fn parse_star(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
+    let (input, _) = tag_no_case("*")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, (Projection::Star, None)))
+}
+
 /// If we see 'SELECT spending ...' it is an implied where clause, need to add to other where clauses later.
-fn parse_implied_where_spending(input: &str) -> IResult<&str, Condition> {
+fn parse_implied_where_spending(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
     let (input, _) = tag_no_case("spending")(input)?;
     let (input, _) =  multispace0(input)?;
-    Ok((input, Condition::Spending(Operator::GtEq, 0.0)))
+    Ok((input, (Projection::Star, Some(Condition::Spending(Operator::GtEq, 0.0)))))
 }
 
 /// If we see 'SELECT income ...' it is an implied where clause, need to add to other where clauses later.
-fn parse_implied_where_income(input: &str) -> IResult<&str, Condition> {
+fn parse_implied_where_income(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
     let (input, _) = tag_no_case("income")(input)?;
     let (input, _) =  multispace0(input)?;
-    Ok((input, Condition::Income(Operator::GtEq, 0.0)))
+    Ok((input, (Projection::Star, Some(Condition::Income(Operator::GtEq, 0.0)))))
+}
+
+/// AUTO(*)
+fn parse_auto(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
+    let (input, _) = tag_no_case("AUTO()")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, (Projection::Auto, None)))
+}
+
+/// SELECT 123
+fn parse_trans_id(input: &str) -> IResult<&str, (Projection, Option<Condition>)> {
+    let (input, trans_id) = u32(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, (Projection::Id(trans_id), None)))
 }
 
 /// FROM account
@@ -69,42 +116,6 @@ pub(crate) fn from_account(input: &str) -> IResult<&str, String> {
     let (input, account) = non_space(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, account.into()))
-}
-
-/// Normal projection, i.e. SELECT *
-fn proj_star(input: &str) -> IResult<&str, Projection> {
-    let (input, _) = tag("*")(input)?;
-    let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Star))
-}
-
-/// SUM(*)
-fn proj_sum(input: &str) -> IResult<&str, Projection> {
-    let (input, _) = tag_no_case("SUM(*)")(input)?;
-    let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Sum(GroupBy::None)))
-}
-
-/// SUM(*)
-fn proj_count(input: &str) -> IResult<&str, Projection> {
-    let (input, _) = tag_no_case("COUNT(*)")(input)?;
-    let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Count(GroupBy::None)))
-}
-
-/// AUTO(*)
-fn proj_auto(input: &str) -> IResult<&str, Projection> {
-    let (input, _) = tag_no_case("AUTO()")(input)?;
-    let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Auto))
-}
-
-
-/// SELECT 123
-fn proj_trans_id(input: &str) -> IResult<&str, Projection> {
-    let (input, trans_id) = u32(input)?;
-    let (input, _) = multispace0(input)?;
-    Ok((input, Projection::Id(trans_id)))
 }
 
 fn group_by(input: &str) -> IResult<&str, GroupBy> {
@@ -168,23 +179,35 @@ mod tests {
 
         let query = "select income order by amount DESC";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, Some(Condition::Income(Operator::Gt, 0.0)), OrderBy::amount_desc(), None, None))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, Some(Condition::Income(Operator::GtEq, 0.0)), OrderBy::amount_desc(), None, None))));
 
         let query = "SELECT * FROM amex-plat LIMIT 5";
         let result = select(query);
         assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("amex-plat".into()), None, OrderBy::date(), Some(5), None))));
 
 
+        let query = "SELECT SUM(spending) from cba";
+        let result = select(query);
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Sum, Some("cba".into()), Some(Condition::Spending(Operator::GtEq, 0.0)), OrderBy::date(), None, None))));
+
+        let query = "SELECT sum(income)";
+        let result = select(query);
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Sum, None, Some(Condition::Income(Operator::GtEq, 0.0)), OrderBy::date(), None, None))));
+
         let query = "select  count(*)";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Count(GroupBy::None), None, None, OrderBy::date(), None, None))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Count, None, None, OrderBy::date(), None, None))));
 
-        let query = "select count(*) from cba where spending > 100.0 limit 4 group by label";
+        let query = "select count(spending) from cba where spending < 100.0 limit 4 group by label";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Count(GroupBy::None), Some("cba".into()), Some(Condition::Spending(Operator::Gt, 100.0)), OrderBy::date(), Some(4), Some(GroupBy::Label)))));
+        assert_eq!(result, Ok(("", Statement::Select(
+            Projection::Count,
+            Some("cba".into()),
+            Some(Condition::And(Box::new((Condition::Spending(Operator::Lt, 100.0), Condition::Spending(Operator::GtEq, 0.0))))),
+            OrderBy::date(), Some(4), Some(GroupBy::Label)))));
 
-        let query = "select count(*) from cba where spending > 100.0 order by amount desc group by label";
+        let query = "select * from cba where spending > 100.0 order by amount desc group by label";
         let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Count(GroupBy::None), Some("cba".into()), Some(Condition::Spending(Operator::Gt, 100.0)), OrderBy::amount_desc(), None, Some(GroupBy::Label)))));
+        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("cba".into()), Some(Condition::Spending(Operator::Gt, 100.0)), OrderBy::amount_desc(), None, Some(GroupBy::Label)))));
     }
 }
