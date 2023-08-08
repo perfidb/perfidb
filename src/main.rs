@@ -6,6 +6,11 @@ use log::{debug, error, info};
 use rustyline::error::ReadlineError;
 use toml::Value;
 use std::io::Write;
+use rustyline::{Cmd, CompletionType, EditMode, KeyEvent};
+use rustyline::completion::FilenameCompleter;
+use rustyline::highlight::MatchingBracketHighlighter;
+use rustyline::hint::HistoryHinter;
+use rustyline::validate::MatchingBracketValidator;
 
 extern crate dirs;
 extern crate core;
@@ -22,6 +27,7 @@ mod sql;
 mod config;
 mod labeller;
 mod live_edit;
+mod editor;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -37,6 +43,17 @@ struct Cli {
 }
 
 static COMMAND_HISTORY_FILE: &str = ".perfidb_history";
+
+static WELCOME_MESSAGE: &'static str = r#"
++-----------------------------------------------------+
+|                                                     |
+| Welcome to PerfiDB                                  |
+|                                                     |
+| For usage visit: https://github.com/perfidb/perfidb |
+| To exit, use command 'exit'                         |
++-----------------------------------------------------+
+"#;
+
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info"))
         // Remove logger formatting
@@ -44,7 +61,6 @@ fn main() {
         .init();
 
     let cli :Cli = Cli::parse();
-
 
     info!("{}", WELCOME_MESSAGE);
 
@@ -58,12 +74,30 @@ fn main() {
         }
     };
 
-    let mut rl = rustyline::DefaultEditor::new().expect("Unable to create terminal editor");
+
+    let config = rustyline::Config::builder()
+        .history_ignore_space(true)
+        .completion_type(CompletionType::List)
+        .edit_mode(EditMode::Emacs)
+        .build();
+    let helper = editor::PerfidbHelper {
+        completer: FilenameCompleter::new(),
+        highlighter: MatchingBracketHighlighter::new(),
+        hinter: HistoryHinter {},
+        colored_prompt: "# ".to_owned(),
+        validator: MatchingBracketValidator::new(),
+    };
+    let mut rl = rustyline::Editor::with_config(config).expect("Unable to create terminal editor");
+    rl.set_helper(Some(helper));
+    rl.bind_sequence(KeyEvent::alt('n'), Cmd::HistorySearchForward);
+    rl.bind_sequence(KeyEvent::alt('p'), Cmd::HistorySearchBackward);
 
     let command_history_file: PathBuf = perfidb_home_path().join(COMMAND_HISTORY_FILE);
+
     if rl.load_history(command_history_file.as_path()).is_err() {
         debug!("No previous command history found.");
     }
+
 
     let mut sql_buffer :Vec<String> = vec![];
     loop {
@@ -169,13 +203,3 @@ fn create_auto_label_rules_example(perfidb_home_dir: &Path) {
     let toml_text = toml::to_string(&config).unwrap();
     fs::write(perfidb_home_dir.join("auto_label_rules.toml.example"), toml_text).expect("Could not create auto_label_rules.toml.example");
 }
-
-static WELCOME_MESSAGE: &'static str = r#"
-+-----------------------------------------------------+
-|                                                     |
-| Welcome to PerfiDB                                  |
-|                                                     |
-| For usage visit: https://github.com/perfidb/perfidb |
-| To exit, use command 'exit'                         |
-+-----------------------------------------------------+
-"#;
