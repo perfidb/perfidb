@@ -229,6 +229,8 @@ impl Database {
                 }
             }
         }
+
+        self.save()
     }
 
     /// Filter transactions based on the given SQL where clause.
@@ -304,6 +306,19 @@ impl Database {
                             Some(label_id) => self.label_id_to_transactions.get(&label_id).unwrap().iter().collect::<HashSet<u32>>(),
                             None => HashSet::new()
                         }
+                    }
+
+                    Operator::NotEq => {
+                        let mut all_trans :HashSet<u32> = self.transactions.keys().map(|k| *k).collect();
+
+                        if let Some(label_id) = self.label_minhash.lookup_by_string(label) {
+                            // remove the transaction with this label, the remaining will be != label
+                            for trans_id in self.label_id_to_transactions.get(&label_id).unwrap().iter() {
+                                all_trans.remove(&trans_id);
+                            }
+                        }
+
+                        all_trans
                     }
 
                     Operator::IsNull => {

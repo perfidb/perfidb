@@ -119,6 +119,7 @@ pub(crate) enum Operator {
     Match,
     IsNull,
     IsNotNull,
+    NotEq,
 }
 
 #[derive(Debug, PartialEq)]

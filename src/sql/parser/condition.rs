@@ -110,7 +110,7 @@ fn where_amount(input: &str) -> IResult<&str, Condition> {
 /// description|desc =|like|match '...'
 fn where_description(input: &str) -> IResult<&str, Condition> {
     let (input, _) = alt((tag_description_multispace1, tag_desc_multispace1))(input)?;
-    let (input, operator) = alt((tag_eq_operator, tag_like_operator, tag_match_operator))(input)?;
+    let (input, operator) = alt((label_eq_operator, tag_like_operator, tag_match_operator))(input)?;
     let (input, text) = delimited(char('\''), is_not("'"), char('\''))(input)?;
     Ok((input, Condition::Description(operator, text.into())))
 }
@@ -134,7 +134,7 @@ fn tag_desc_multispace1(input: &str) -> IResult<&str, ()> {
 fn where_date(input: &str) -> IResult<&str, Condition> {
     let (input, _) = tag_no_case("date")(input)?;
     let (input, _) = multispace1(input)?;
-    let (input, operator) = tag_eq_operator(input)?;
+    let (input, operator) = label_eq_operator(input)?;
     let (input, date_range) = alt((yyyy_mm_dd, yyyy_mm, single_month_int))(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Condition::Date(operator, date_range)))
@@ -186,7 +186,7 @@ fn single_month_int(input: &str) -> IResult<&str, Range<NaiveDate>> {
 fn where_label(input: &str) -> IResult<&str, Condition> {
     let (input, _) = tag_no_case("label")(input)?;
     let (input, _) = multispace1(input)?;
-    let (input, op) = alt((tag_eq_operator, tag_is_null_operator, tag_is_not_null_operator))(input)?;
+    let (input, op) = alt((label_eq_operator, label_not_eq_operator, label_is_null_operator, label_is_not_null_operator))(input)?;
 
     // If we see 'IS NULL' or 'IS NOT NULL' there is no need to parse the labels, we just return empty string label here
     match op {
@@ -200,21 +200,28 @@ fn where_label(input: &str) -> IResult<&str, Condition> {
 
 
 /// '='
-fn tag_eq_operator(input: &str) -> IResult<&str, Operator> {
-    let (input, _) = tag_no_case("=")(input)?;
+fn label_eq_operator(input: &str) -> IResult<&str, Operator> {
+    let (input, _) = tag("=")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Operator::Eq))
 }
 
+/// '!='
+fn label_not_eq_operator(input: &str) -> IResult<&str, Operator> {
+    let (input, _) = tag("!=")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Operator::NotEq))
+}
+
 /// IS NULL
-fn tag_is_null_operator(input: &str) -> IResult<&str, Operator> {
+fn label_is_null_operator(input: &str) -> IResult<&str, Operator> {
     let (input, _) = tag_no_case("IS NULL")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Operator::IsNull))
 }
 
 /// IS NOT NULL
-fn tag_is_not_null_operator(input: &str) -> IResult<&str, Operator> {
+fn label_is_not_null_operator(input: &str) -> IResult<&str, Operator> {
     let (input, _) = tag_no_case("IS NOT NULL")(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, Operator::IsNotNull))
