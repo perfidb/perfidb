@@ -131,7 +131,7 @@ fn main() {
                 }
                 if is_last {
                     let sql = sql_buffer.join("\n");
-                    rl.add_history_entry(sql.trim());
+                    let _ = rl.add_history_entry(sql.trim());
 
                     // Remove leading and trailing space and semicolon
                     let pattern :&[_] = &[' ', ';'];

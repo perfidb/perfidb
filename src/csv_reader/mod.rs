@@ -41,7 +41,7 @@ impl fmt::Display for CsvError {
 
 impl std::error::Error for CsvError {}
 
-pub(crate) fn read_transactions(table_name :&str, file_path: &Path, inverse_amount: bool) -> Result<Vec<Record>, CsvError> {
+pub(crate) fn read_transactions(table_name :&str, file_path: &Path) -> Result<Vec<Record>, CsvError> {
     if !file_path.exists() {
         return Err(CsvError::FileNotFoundError("File not found".into()));
     }
@@ -60,12 +60,11 @@ pub(crate) fn read_transactions(table_name :&str, file_path: &Path, inverse_amou
 
     let mut rdr = csv::ReaderBuilder::new().has_headers(column_info.has_header).from_path(file_path).unwrap();
     let mut records :Vec<Record> = vec![];
-    let inverse_amount :f32 = if inverse_amount { -1.0 } else { 1.0 };
     for record in rdr.records() {
         let row = record.unwrap();
         let date = parse_date(row.get(column_info.date_column).unwrap());
         let description = row.get(column_info.description_column).unwrap().to_string();
-        let amount = parse_amount(&row, &column_info) * inverse_amount;
+        let amount = parse_amount(&row, &column_info);
 
         let id = column_info.perfidb_transaction_id_column.map(|i| row.index(i).parse::<u32>().unwrap());
 

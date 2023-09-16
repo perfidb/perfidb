@@ -2,6 +2,7 @@ mod select;
 mod insert;
 pub mod parser;
 
+use std::ops::Neg;
 use std::path::{Path, PathBuf};
 use comfy_table::{Table, TableComponent};
 use csv::WriterBuilder;
@@ -87,16 +88,16 @@ pub(crate) fn execute_import(db : &mut Database, account :&str, file_path :&str,
     }
 }
 
-fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amount: bool, dry_run: bool) {
+fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, mut inverse_amount: bool, dry_run: bool) {
     if dry_run {
         info!("Dry run. Printing transactions from {}", path.display());
     } else {
         info!("Importing transactions from {}", path.display());
     }
 
-    let result = csv_reader::read_transactions(table_name, path, inverse_amount);
+    let result = csv_reader::read_transactions(table_name, path);
     match result {
-        Ok(records) => {
+        Ok(mut records) => {
             if dry_run {
                 let mut table = Table::new();
                 table.set_header(vec!["Account", "Date", "Description", "Amount"]);
@@ -109,7 +110,42 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, inverse_amoun
                 }
                 println!("{table}");
                 info!("This is a dry-run. Transactions are not imported");
-            } else {
+                return;
+            }
+
+            // If inverse_amount flag is not set
+            if !inverse_amount {
+                // We should check if most transactions have positive amount. If this is the case it's likely to be
+                // inverse amount, so we should prompt user
+
+                let mut positive_amount_count = 0usize;
+                for r in records.iter() {
+                    if r.amount > 0.0 {
+                        positive_amount_count += 1;
+                    }
+                }
+                // If more than 50% of records have positive amount
+                if positive_amount_count as f32 / records.len() as f32 > 0.5 {
+                    // ask user if they want to set 'inverse_amount' flag to true
+                    println!("Most transactions in {} have positive amount value.\n\
+                    Do you want to set 'inverse_amount' flag so positive amount are treated as spending and \
+                    negative are treated as income?\n\
+                    yes or no, default is 'yes': ", path.display());
+
+                    let mut user_input = String::new();
+                    std::io::stdin().read_line(&mut user_input).unwrap();
+                    let user_input = user_input.trim().to_lowercase();
+                    if user_input.is_empty() || user_input == "yes" {
+                        inverse_amount = true;
+                    }
+                }
+
+                if inverse_amount {
+                    for r in records.iter_mut() {
+                        r.amount = r.amount.neg();
+                    }
+                }
+
                 for r in &records {
                     db.upsert(r);
                 }

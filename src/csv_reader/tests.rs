@@ -15,7 +15,7 @@ fn test_detect_header_row() {
 
 #[test]
 fn test_read_transactions() {
-    let results = read_transactions("amex", &fixture_filename("header.csv"), false);
+    let results = read_transactions("amex", &fixture_filename("header.csv"));
     match results {
         Ok(rows) => {
             assert_eq!(rows.len(), 4);
@@ -26,7 +26,7 @@ fn test_read_transactions() {
 
 #[test]
 fn test_read_no_header() {
-    let results = read_transactions("amex", &fixture_filename("no_header.csv"), false);
+    let results = read_transactions("amex", &fixture_filename("no_header.csv"));
     match results {
         Ok(rows) => {
             assert_eq!(rows.len(), 8);
