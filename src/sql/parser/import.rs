@@ -1,22 +1,15 @@
 use nom::bytes::complete::{is_not, tag_no_case};
-use nom::character::complete::{char, multispace0, multispace1};
+use nom::character::complete::{char, multispace0};
 use nom::combinator::opt;
 use nom::{IResult};
 use nom::sequence::delimited;
-use crate::sql::parser::{non_space, Statement};
+use crate::sql::parser::{Statement};
 
-/// Parse `IMPORT amex-explorer FROM ./file/path (inverse dryrun)
-/// TODO: handle file path with whitespace
+/// Parse `IMPORT (inverse dryrun)
 pub(crate) fn import(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("IMPORT")(input)?;
-    let (input, _) =  multispace1(input)?;
-    let (input, account) =  non_space(input)?;
-    let (input, _) =  multispace1(input)?;
-    let (input, _) = tag_no_case("FROM")(input)?;
-    let (input, _) =  multispace1(input)?;
-    let (input, file_path) =  non_space(input)?;
     let (input, _) =  multispace0(input)?;
-    let (_, import_options) =  parse_import_options(input)?;
+    let (input, import_options) =  parse_import_options(input)?;
 
     let mut inverse_flag = false;
     let mut dryrun_flag = false;
@@ -30,13 +23,7 @@ pub(crate) fn import(input: &str) -> IResult<&str, Statement> {
         }
     }
 
-    let quotation_marks :&[_] = &['\'', '"'];
-    Ok((file_path, Statement::Import(
-        account.to_string(),
-        file_path.trim_matches(quotation_marks).to_string(),
-        inverse_flag,
-        dryrun_flag
-    )))
+    Ok((input, Statement::Import(inverse_flag, dryrun_flag)))
 }
 
 fn parse_import_options(input: &str) -> IResult<&str, Option<&str>> {

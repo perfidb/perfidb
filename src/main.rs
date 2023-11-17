@@ -1,4 +1,5 @@
 use std::{fs, process};
+
 use std::path::{Path, PathBuf};
 use clap::Parser;
 use env_logger::Env;
@@ -29,6 +30,7 @@ mod labeller;
 mod live_edit;
 mod editor;
 mod util;
+mod import;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -36,6 +38,10 @@ struct Cli {
     /// Database file path. If not specified it will be created at ~/.perfidb/finance.db
     #[arg(short, long, value_name = "DATABASE_FILE")]
     file: Option<String>,
+
+    /// The dir that contains bank transaction csv files
+    #[arg(short, long, value_name = "IMPORT_ROOT_DIR")]
+    import_root_dir: String,
 
     /// A toml file containing auto labelling regex. By default perfidb will try look for '~/.peridb/auto_label_rules.toml' file.
     /// An example toml file is generated in '~/.perfidb' directory. Remove '.example' suffix to start using this file.
@@ -65,8 +71,8 @@ fn main() {
 
     info!("{}", WELCOME_MESSAGE);
 
-
-    let mut db = init_and_load_database(&cli.file);
+    let import_root_dir = PathBuf::from(cli.import_root_dir);
+    let mut db = init_and_load_database(&cli.file, &import_root_dir);
     let auto_label_rules_file = match &cli.auto_label_rules_file {
         Some(f) => f.clone(),
         None => {
@@ -137,7 +143,7 @@ fn main() {
                     // Remove leading and trailing space and semicolon
                     let pattern :&[_] = &[' ', ';'];
                     let sql = sql.trim_matches(pattern).to_string();
-                    let result = parse_and_run_sql(&mut db, sql, &auto_label_rules_file);
+                    let result = parse_and_run_sql(&mut db, &import_root_dir, sql, &auto_label_rules_file);
 
                     if let Err(err) = result {
                         error!("{}", err);
@@ -168,7 +174,7 @@ fn perfidb_home_path() -> PathBuf {
     user_home.join(".perfidb")
 }
 
-fn init_and_load_database(file_from_cli: &Option<String>) -> Database {
+fn init_and_load_database(file_from_cli: &Option<String>, _import_root_dir: &PathBuf) -> Database {
     if let Some(file_from_cli) = file_from_cli {
         info!("Loading database from: {}", file_from_cli);
         Database::load(file_from_cli).unwrap()
