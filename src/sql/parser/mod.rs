@@ -120,6 +120,7 @@ pub(crate) enum Operator {
     IsNull,
     IsNotNull,
     NotEq,
+    Between,
 }
 
 #[derive(Debug, PartialEq)]
@@ -138,6 +139,7 @@ impl From<&str> for Operator {
             ">=" => Operator::GtEq,
             "<=" => Operator::LtEq,
             "match" | "like" => Operator::Match,
+            "between" => Operator::Between,
             _ => panic!("Unable to parse operator {}", lower_case)
         }
     }

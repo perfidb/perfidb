@@ -3,11 +3,13 @@ use chrono::{Datelike, Duration, NaiveDate, Utc};
 use log::warn;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, tag_no_case, take_till};
-use nom::character::complete::{char, digit1, multispace0, multispace1, u32};
+use nom::character::complete::{char, digit1, i32, multispace0, multispace1, u32};
 use nom::{IResult};
+use nom::error::ErrorKind;
 use nom::multi::many0;
 use nom::sequence::delimited;
 use crate::sql::parser::{Condition, floating_point_num, LogicalOperator, Operator, yyyy_mm_dd_date};
+use crate::util::{month_of, year_of};
 
 /// WHERE ...
 pub(crate) fn where_parser(input: &str) -> IResult<&str, Condition> {
@@ -48,6 +50,8 @@ fn single_condition(input: &str) -> IResult<&str, Condition> {
         where_amount,
         where_description,
         where_date,
+        where_month,
+        where_year,
         where_label))(input)?;
     let (input, _) = multispace0(input)?;
     Ok((input, condition))
@@ -129,23 +133,51 @@ fn tag_desc_multispace1(input: &str) -> IResult<&str, ()> {
     Ok((input, ()))
 }
 
-
 /// date = ...
 fn where_date(input: &str) -> IResult<&str, Condition> {
     let (input, _) = tag_no_case("date")(input)?;
-    let (input, _) = multispace1(input)?;
+    let (input, _) = multispace0(input)?;
     let (input, operator) = label_eq_operator(input)?;
-    let (input, date_range) = alt((yyyy_mm_dd, yyyy_mm, single_month_int))(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, date) = yyyy_mm_dd_date(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Condition::Date(operator, date..date + Duration::days(1))))
+}
+
+/// month = ...
+fn where_month(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("month")(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, operator) = alt((label_eq_operator, between_operator))(input)?;
+    let (input, date_range) = match operator {
+        Operator::Between => month_range(input)?,
+        Operator::Eq => month(input)?,
+        _ => {
+            return Err(nom::Err::Error(nom::error::Error::new(input, ErrorKind::Fail)));
+        }
+    };
+
     let (input, _) = multispace0(input)?;
     Ok((input, Condition::Date(operator, date_range)))
 }
 
-fn yyyy_mm_dd(input: &str) -> IResult<&str, Range<NaiveDate>> {
-    let (input, date) = yyyy_mm_dd_date(input)?;
-    Ok((input, date..date.add(Duration::days(1))))
+/// year = ...
+fn where_year(input: &str) -> IResult<&str, Condition> {
+    let (input, _) = tag_no_case("year")(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, operator) = label_eq_operator(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, year) = i32(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Condition::Date(operator, year_of(year))))
 }
 
-fn yyyy_mm(input: &str) -> IResult<&str, Range<NaiveDate>> {
+/// month can be in format 'yyyy-mm' or just a single int, e.g. 12.
+fn month(input: &str) -> IResult<&str, Range<NaiveDate>> {
+    alt((month_yyyy_mm, month_int))(input)
+}
+
+fn month_yyyy_mm(input: &str) -> IResult<&str, Range<NaiveDate>> {
     let (input, year) = digit1(input)?;
     let (input, _) = tag("-")(input)?;
     let (input, month) = digit1(input)?;
@@ -161,25 +193,20 @@ fn yyyy_mm(input: &str) -> IResult<&str, Range<NaiveDate>> {
     Ok((input, first_day..first_day_next_month))
 }
 
-fn single_month_int(input: &str) -> IResult<&str, Range<NaiveDate>> {
+fn month_int(input: &str) -> IResult<&str, Range<NaiveDate>> {
     let (input, month) = u32(input)?;
-    let mut month = month % 12;
-    if month == 0 {
-        month = 12;
-    }
+    let single_month_range = month_of(month);
 
-    let today = Utc::now().naive_utc().date();
-    let mut year = today.year();
-    if month >= today.month() {
-        year -= 1;
-    }
+    Ok((input, single_month_range))
+}
 
-    let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-    let next_month = if month == 12 { 1 } else { month + 1 };
-    let next_month_year = if month == 12 { year + 1 } else { year };
-    let first_day_next_month = NaiveDate::from_ymd_opt(next_month_year, next_month, 1).unwrap();
-
-    Ok((input, first_day..first_day_next_month))
+fn month_range(input: &str) -> IResult<&str, Range<NaiveDate>> {
+    let (input, month_from) = month(input)?;
+    let (input, _) = multispace1(input)?;
+    let (input, _) = tag_no_case("and")(input)?;
+    let (input, _) = multispace1(input)?;
+    let (input, month_to) = month(input)?;
+    Ok((input, month_from.start..month_to.end))
 }
 
 /// label = ...   label IS NULL    label IS NOT NULL
@@ -241,6 +268,13 @@ fn tag_match_operator(input: &str) -> IResult<&str, Operator> {
     Ok((input, Operator::Match))
 }
 
+/// 'between'
+fn between_operator(input: &str) -> IResult<&str, Operator> {
+    let (input, _) = tag_no_case("between")(input)?;
+    let (input, _) = multispace0(input)?;
+    Ok((input, Operator::Between))
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -266,14 +300,14 @@ mod tests {
         let result = where_parser(query);
         assert_eq!(result, Ok(("", Condition::Description(Operator::Match, "abc".into()))));
 
-        let query = "where date = 12";
+        let query = "where month = 12";
         let result = where_parser(query).unwrap().1;
         assert!(matches!(result, Condition::Date { .. }));
         if let Condition::Date(_, date_range) = result {
             assert_eq!(date_range.start.month(), 12);
         }
 
-        let query = "where date = 2023-04";
+        let query = "where month = 2023-04";
         let result = where_parser(query).unwrap().1;
         assert!(matches!(result, Condition::Date { .. }));
         if let Condition::Date(_, date_range) = result {

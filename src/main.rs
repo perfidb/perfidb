@@ -28,6 +28,7 @@ mod config;
 mod labeller;
 mod live_edit;
 mod editor;
+mod util;
 
 #[derive(Parser)]
 #[command(author, version, about)]
