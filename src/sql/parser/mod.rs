@@ -30,7 +30,7 @@ pub(crate) enum Statement {
     Export(String),
 
     /// IMPORT account FROM file_path
-    Import(String, String, bool, bool),
+    Import(bool, bool),
 
     /// INSERT INTO account VALUES (2022-05-20, 'description', -30.0, 'label1, label2'), (2022-05-21, 'description', -32.0)
     Insert(Option<String>, Vec<Record>),

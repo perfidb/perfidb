@@ -2,18 +2,22 @@ mod select;
 mod insert;
 pub mod parser;
 
+use std::fs;
+
 use std::ops::Neg;
 use std::path::{Path, PathBuf};
+use anyhow::anyhow;
 use comfy_table::{Table, TableComponent};
 use csv::WriterBuilder;
 use log::{info, warn};
-use walkdir::WalkDir;
+
 use crate::{csv_reader, Database};
+use crate::import::{diff_files, scan_files};
 use crate::sql::parser::OrderBy;
 
 use crate::sql::parser::Statement::{Delete, Export, Import, Insert, Select, Label};
 
-pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules_file: &str) -> Result<(), String> {
+pub(crate) fn parse_and_run_sql(db: &mut Database, import_root_dir: &PathBuf, sql: String, auto_label_rules_file: &str) -> Result<(), String> {
     // First use our own parser to parse
     let result = parser::parse(&sql);
 
@@ -23,8 +27,8 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
                 Export(file_path) => {
                     execute_export_db(db, &file_path);
                 }
-                Import(account, file_path, inverse_amount, dryrun) => {
-                    execute_import(db, &account, &file_path, inverse_amount, dryrun);
+                Import(inverse_amount, dryrun) => {
+                    execute_import(db, import_root_dir, inverse_amount, dryrun);
                 }
                 Select(projection, from, condition, order_by, limit, group_by) => {
                     select::run_select(db, projection, from, condition, order_by, limit, group_by, auto_label_rules_file);
@@ -64,31 +68,40 @@ pub(crate) fn parse_and_run_sql(db: &mut Database, sql: String, auto_label_rules
 extern crate dirs;
 
 /// Import transactions from a file
-pub(crate) fn execute_import(db : &mut Database, account :&str, file_path :&str, inverse_amount: bool, dry_run: bool) {
-    let file_path: PathBuf = if file_path.starts_with("~/") {
-        let mut path = dirs::home_dir().unwrap().into_os_string();
-        path.push(&file_path[1..]);
-        path.into()
-    } else {
-        PathBuf::from(file_path)
-    };
+pub(crate) fn execute_import(db : &mut Database, import_root_dir :&PathBuf, inverse_amount: bool, dry_run: bool) {
+    let current_dir_files = scan_files(import_root_dir).unwrap();
+    let new_files = diff_files(&db, &current_dir_files);
+    if new_files.is_empty() {
+        info!("No new statement files detected.");
+        return;
+    }
 
-    if file_path.is_dir() {
-        info!("Parsing csv files from {} ...",file_path.display());
-        for entry in WalkDir::new(file_path).into_iter() {
-            let dir_entry = entry.unwrap();
-            if dir_entry.path().is_file() && dir_entry.file_name().to_str().unwrap().to_lowercase().ends_with(".csv") {
-                copy_from_csv(dir_entry.path(), db, account, inverse_amount, dry_run);
+    for f in new_files.iter() {
+        // Derive account name from the first segment of path.
+        // E.g. for amex/2023-01.csv the account name will be 'amex'.
+        let account = match f.split_once(std::path::MAIN_SEPARATOR) {
+            None => "default",
+            Some((first_segment, _)) => first_segment
+        };
+
+        let path = PathBuf::from(import_root_dir).join(f);
+        let result = copy_from_csv(path.as_path(), db, account, inverse_amount, dry_run);
+        match result {
+            Ok(()) => {
+                if !dry_run {
+                    let md5 = md5::compute(fs::read(path).unwrap());
+                    db.record_file_md5(f, md5).expect("Unable to record file md5");
+                }
+            },
+            Err(e) => {
+                warn!("{}", e)
             }
         }
-    } else if file_path.is_file() {
-        copy_from_csv(file_path.as_path(), db, account, inverse_amount, dry_run);
-    } else {
-        warn!("{:?} does not exist", file_path);
     }
+    db.save();
 }
 
-fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, mut inverse_amount: bool, dry_run: bool) {
+fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, mut inverse_amount: bool, dry_run: bool) -> anyhow::Result<()> {
     if dry_run {
         info!("Dry run. Printing transactions from {}", path.display());
     } else {
@@ -110,7 +123,7 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, mut inverse_a
                 }
                 println!("{table}");
                 info!("This is a dry-run. Transactions are not imported");
-                return;
+                return Ok(());
             }
 
             // If inverse_amount flag is not set
@@ -152,9 +165,10 @@ fn copy_from_csv(path: &Path, db: &mut Database, table_name: &str, mut inverse_a
                 db.save();
                 println!("Imported {} transactions", &records.len());
             }
+            Ok(())
         },
         Err(e) => {
-            println!("{e}");
+            Err(anyhow!(e))
         }
     }
 }

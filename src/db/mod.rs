@@ -3,18 +3,21 @@ mod minhash;
 mod roaring_bitmap;
 mod label_id_vec;
 pub(crate) mod label_op;
+pub(crate) mod shadow;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::hash_map::Entry;
 use std::io::{Read, Seek, SeekFrom, Write};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::path::Path;
+use std::path::{Path};
+use anyhow::Context;
 
 use chrono::{NaiveDate, NaiveDateTime};
 use log::{debug};
+use md5::Digest;
 use roaring::MultiOps;
 use serde::{Deserialize, Serialize};
-use crate::common::ResultError;
 
 use crate::csv_reader::Record;
 use minhash::StringMinHash;
@@ -74,6 +77,11 @@ pub(crate) struct Database {
     /// Inverted index for full-text search on 'description'
     search_index: SearchIndex,
 
+    /// Files already imported. Each entry is a relative path to the root path.
+    imported_files: HashMap<String, [u8; 16]>,
+
+    imported_md5s: HashMap<[u8; 16], String>,
+
     #[serde(skip_serializing, skip_deserializing)]
     file_path: Option<String>,
 
@@ -90,12 +98,14 @@ impl Database {
             label_minhash: StringMinHash::new(),
             label_id_to_transactions: HashMap::new(),
             search_index: SearchIndex::new(),
+            imported_files: HashMap::new(),
+            imported_md5s: HashMap::new(),
             file_path: Some(file_path),
             last_query_results: None,
         }
     }
 
-    pub(crate) fn load(path_str: &str) -> ResultError<Database> {
+    pub(crate) fn load(path_str: &str) -> anyhow::Result<Database> {
         let path = Path::new(path_str);
         if path.exists() {
             let mut file = fs::File::open(path)?;
@@ -110,10 +120,11 @@ impl Database {
             let mut buffer: Vec<u8> = vec![];
             file.read_to_end(&mut buffer)?;
 
-            let mut database :Database = bincode::deserialize(&buffer)?;
+            let mut database :Database = bincode::deserialize(&buffer).with_context(|| "Cannot deserialise db")?;
             database.file_path = Some(path_str.to_string());
             Ok(database)
         } else {
+            println!("create new db: {:?}", path_str);
             Ok(Database::new(path_str.to_string()))
         }
     }
@@ -140,6 +151,29 @@ impl Database {
 
         file.write_all(&encoded).expect("Unable to write to database file");
         file.flush().unwrap();
+    }
+
+    pub(crate) fn file_exist(&self, file_path: &str) -> bool {
+        self.imported_files.contains_key(file_path)
+    }
+
+    /// Record a file has been imported and the file's md5
+    pub(crate) fn record_file_md5(&mut self, file_path: &str, md5: Digest) -> anyhow::Result<Option<Digest>> {
+        match self.imported_files.entry(file_path.to_string()) {
+            Entry::Occupied(mut existing) => {
+                let old_md5 = existing.insert(md5.0);
+
+                self.imported_md5s.remove(&old_md5);
+                self.imported_md5s.insert(md5.into(), file_path.into());
+
+                Ok(Some(Digest(old_md5)))
+            },
+            Entry::Vacant(a) => {
+                a.insert(md5.into());
+                self.imported_md5s.insert(md5.into(), file_path.into());
+                Ok(None)
+            }
+        }
     }
 
     pub(crate) fn upsert(&mut self, t: &Record) {
