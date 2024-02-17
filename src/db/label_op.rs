@@ -5,7 +5,7 @@ use nom::combinator::opt;
 use nom::IResult;
 use nom::multi::many1;
 use nom::sequence::delimited;
-use crate::sql::parser::non_space1;
+use crate::parser::non_space1;
 
 /// Represent a labelling command. Currently supporting two types of command.
 /// Manual - manually specifying a list of add / remove labels.

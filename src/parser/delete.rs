@@ -2,7 +2,7 @@ use log::warn;
 use nom::bytes::complete::tag_no_case;
 use nom::IResult;
 use nom::multi::many1;
-use crate::sql::parser::{space_comma1, Statement};
+use crate::parser::{space_comma1, Statement};
 
 pub(crate) fn parse_delete(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("DELETE")(input)?;

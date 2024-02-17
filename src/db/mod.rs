@@ -16,19 +16,16 @@ use anyhow::Context;
 use chrono::{NaiveDate, NaiveDateTime};
 use log::{debug};
 use md5::Digest;
-use roaring::MultiOps;
 use serde::{Deserialize, Serialize};
 
 use crate::csv_reader::Record;
 use minhash::StringMinHash;
-use sql::parser::Condition;
 use crate::config::Config;
 use crate::db::label_id_vec::LabelIdVec;
 use crate::db::label_op::{LabelCommand, LabelOp};
 use crate::db::roaring_bitmap::PerfidbRoaringBitmap;
 use crate::db::search::SearchIndex;
-use crate::sql;
-use crate::sql::parser::{Operator, OrderBy, OrderByField};
+use crate::parser::{Condition, Operator, OrderBy, OrderByField};
 use crate::labeller::Labeller;
 use crate::transaction::Transaction;
 

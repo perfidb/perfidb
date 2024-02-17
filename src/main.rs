@@ -18,19 +18,19 @@ extern crate core;
 
 use crate::config::Config;
 use crate::db::Database;
-use crate::sql::parse_and_run_sql;
 
 mod common;
 mod db;
 mod csv_reader;
 mod transaction;
-mod sql;
 mod config;
 mod labeller;
 mod live_edit;
 mod editor;
 mod util;
 mod import;
+mod command;
+mod parser;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -143,7 +143,7 @@ fn main() {
                     // Remove leading and trailing space and semicolon
                     let pattern :&[_] = &[' ', ';'];
                     let sql = sql.trim_matches(pattern).to_string();
-                    let result = parse_and_run_sql(&mut db, &import_root_dir, sql, &auto_label_rules_file);
+                    let result = command::parse_and_run_command(&mut db, &import_root_dir, sql, &auto_label_rules_file);
 
                     if let Err(err) = result {
                         error!("{}", err);

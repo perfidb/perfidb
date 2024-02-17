@@ -7,8 +7,8 @@ use nom::Err::Error;
 use nom::error::ErrorKind;
 use nom::sequence::delimited;
 
-use crate::sql::parser::{Condition, GroupBy, LogicalOperator, non_space, Operator, OrderBy, OrderByField, Projection, Statement};
-use crate::sql::parser::condition::where_parser;
+use crate::parser::{Condition, GroupBy, LogicalOperator, non_space, Operator, OrderBy, OrderByField, Projection, Statement};
+use crate::parser::condition::where_parser;
 
 /// Match `SELECT` statements. This is still working-in-progress. We are trying to migrate
 /// all `SELECT` syntax into this parser.
@@ -168,8 +168,8 @@ fn parse_limit(input: &str) -> IResult<&str, Option<usize>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::sql::parser::select::{select};
-    use crate::sql::parser::{Condition, GroupBy, Operator, OrderBy, Projection, Statement};
+    use crate::parser::select::{select};
+    use crate::parser::{Condition, GroupBy, Operator, OrderBy, Projection, Statement};
 
     #[test]
     fn test() {

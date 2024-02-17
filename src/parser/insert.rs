@@ -5,7 +5,7 @@ use nom::IResult;
 use nom::multi::many1;
 use nom::sequence::delimited;
 use crate::csv_reader::Record;
-use crate::sql::parser::{comma, floating_point_num, non_space, Statement, yyyy_mm_dd_date};
+use crate::parser::{comma, floating_point_num, non_space, Statement, yyyy_mm_dd_date};
 
 pub(crate) fn parse_insert(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("INSERT")(input)?;
@@ -62,8 +62,8 @@ fn parse_record_labels(input: &str) -> IResult<&str, Vec<String>> {
 #[cfg(test)]
 mod tests {
     use chrono::NaiveDate;
-    use crate::sql::parser::insert::parse_insert;
-    use crate::sql::parser::Statement;
+    use crate::parser::insert::parse_insert;
+    use crate::parser::Statement;
 
     #[test]
     fn test() {

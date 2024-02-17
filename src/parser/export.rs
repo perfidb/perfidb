@@ -1,7 +1,7 @@
 use nom::bytes::complete::tag_no_case;
 use nom::character::complete::multispace1;
 use nom::IResult;
-use crate::sql::parser::Statement;
+use crate::parser::Statement;
 
 /// Parse `EXPORT TO file_path` pattern.
 pub(crate) fn export(input: &str) -> IResult<&str, Statement> {

@@ -3,7 +3,7 @@ use nom::character::complete::{char, multispace0};
 use nom::combinator::opt;
 use nom::{IResult};
 use nom::sequence::delimited;
-use crate::sql::parser::{Statement};
+use crate::parser::{Statement};
 
 /// Parse `IMPORT (inverse dryrun)
 pub(crate) fn import(input: &str) -> IResult<&str, Statement> {

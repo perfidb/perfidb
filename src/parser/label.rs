@@ -2,7 +2,7 @@ use nom::bytes::complete::{tag_no_case};
 use nom::IResult;
 use nom::multi::many1;
 use crate::db::label_op::{parse_label_command};
-use crate::sql::parser::{space_comma1, Statement};
+use crate::parser::{space_comma1, Statement};
 
 /// Parse `UPDATE SET label = ...` pattern.
 pub(crate) fn parse_label(input: &str) -> IResult<&str, Statement> {
@@ -25,8 +25,8 @@ fn parse_trans_id(input: &str) -> IResult<&str, u32> {
 #[cfg(test)]
 mod tests {
     use crate::db::label_op::{LabelCommand, LabelOp};
-    use crate::sql::parser::{Operator, Statement};
-    use crate::sql::parser::label::parse_label;
+    use crate::parser::{Operator, Statement};
+    use crate::parser::label::parse_label;
 
     #[test]
     fn test() {

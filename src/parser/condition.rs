@@ -8,7 +8,7 @@ use nom::{IResult};
 use nom::error::ErrorKind;
 use nom::multi::many0;
 use nom::sequence::delimited;
-use crate::sql::parser::{Condition, floating_point_num, LogicalOperator, Operator, yyyy_mm_dd_date};
+use crate::parser::{Condition, floating_point_num, LogicalOperator, Operator, yyyy_mm_dd_date};
 use crate::util::{month_of, year_of};
 
 /// WHERE ...
@@ -279,8 +279,8 @@ fn between_operator(input: &str) -> IResult<&str, Operator> {
 #[cfg(test)]
 mod tests {
     use chrono::{Datelike, NaiveDate};
-    use crate::sql::parser::{Condition, Operator};
-    use crate::sql::parser::condition::where_parser;
+    use crate::parser::{Condition, Operator};
+    use crate::parser::condition::where_parser;
 
     #[test]
     fn test() {

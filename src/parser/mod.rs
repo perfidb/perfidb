@@ -213,7 +213,7 @@ fn floating_point_num(input: &str) -> IResult<&str, f32> {
 
 #[cfg(test)]
 mod tests {
-    use crate::sql::parser::{parse, Statement};
+    use crate::parser::{parse, Statement};
 
     #[test]
     fn test() {
@@ -221,12 +221,12 @@ mod tests {
         let result = parse(query);
         println!("{:?}", result);
 
-        let query = "IMPORT amex-explorer FROM './finance/export.csv'";
+        let query = "IMPORT";
         let (_, result) = parse(query).unwrap();
-        assert_eq!(result, Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), false, false));
+        assert_eq!(result, Statement::Import(false, false));
 
-        let query = "IMPORT amex-explorer FROM './finance/export.csv' (i, dryrun)";
+        let query = "IMPORT (i, dryrun)";
         let (_, result) = parse(query).unwrap();
-        assert_eq!(result, Statement::Import("amex-explorer".to_string(), "./finance/export.csv".to_string(), true, true));
+        assert_eq!(result, Statement::Import(true, true));
     }
 }

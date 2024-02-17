@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use chrono::NaiveDateTime;
-use comfy_table::{Table, TableComponent, Cell, Color, CellAlignment};
-use crate::transaction::Transaction;
+use comfy_table::{Cell, CellAlignment, Table, TableComponent};
+use crossterm::style::Color;
 use crate::config::Config;
 use crate::db::Database;
-use crate::sql::parser::{Condition, GroupBy, OrderBy, Projection};
 use crate::labeller::Labeller;
+use crate::parser::{Condition, GroupBy, OrderBy, Projection};
+use crate::transaction::Transaction;
 
 /// Run an `SELECT` select
 pub(crate) fn run_select(
