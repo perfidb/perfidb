@@ -41,7 +41,7 @@ impl Transaction {
 /// if both transactions have the same date and description we want the hash to be the same.
 pub(crate) fn transaction_hash(datetime: NaiveDateTime, description: &str, amount: f32) -> u64 {
     let mut hasher = DefaultHasher::new();
-    hasher.write_i64(datetime.timestamp());
+    hasher.write_i64(datetime.and_utc().timestamp());
     hasher.write(description.as_bytes());
     hasher.write(&amount.abs().to_le_bytes());
 

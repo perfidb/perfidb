@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use chrono::NaiveDateTime;
-use comfy_table::{Cell, CellAlignment, Table, TableComponent};
-use crossterm::style::Color;
+use comfy_table::{Cell, CellAlignment, Color, Table, TableComponent};
 use crate::config::Config;
 use crate::db::Database;
 use crate::labeller::Labeller;
