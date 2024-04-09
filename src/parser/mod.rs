@@ -5,6 +5,7 @@ mod label;
 mod condition;
 mod insert;
 mod delete;
+mod auto_label;
 
 use std::ops::Range;
 use chrono::NaiveDate;
@@ -25,6 +26,11 @@ pub(crate) enum Statement {
 
     /// LABEL 100 200 : food -grocery
     Label(Vec<u32>, LabelCommand),
+    
+    /// AUTO_LABEL [RUN] WHERE ...
+    /// The second bool indicates if it should actually run auto_label operation.
+    /// If 'RUN' is specified it will be true.
+    AutoLabel(Condition, bool),
 
     /// EXPORT TO file_path
     Export(String),
@@ -58,7 +64,7 @@ pub(crate) enum GroupBy {
     Label,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Condition {
     Id(u32),
     Spending(Operator, f32),
@@ -109,7 +115,7 @@ impl Condition {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Operator {
     Eq,
     Gt,
@@ -149,6 +155,7 @@ pub(crate) fn parse(query: &str) -> IResult<&str, Statement> {
     alt((
         select::select,
         label::parse_label,
+        auto_label::auto_label,
         export::export,
         import::import,
         insert::parse_insert,

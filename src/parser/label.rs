@@ -4,7 +4,7 @@ use nom::multi::many1;
 use crate::db::label_op::{parse_label_command};
 use crate::parser::{space_comma1, Statement};
 
-/// Parse `UPDATE SET label = ...` pattern.
+/// Parse `LABEL trans_id, trans_id 'label'` pattern.
 pub(crate) fn parse_label(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag_no_case("LABEL")(input)?;
     let (input, trans_ids) =  parse_trans_ids(input)?;

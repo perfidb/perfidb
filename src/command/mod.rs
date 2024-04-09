@@ -1,9 +1,13 @@
 use std::path::PathBuf;
 use log::info;
+use crate::config::Config;
 use crate::db::Database;
+use crate::db::label_op::LabelCommand;
 use crate::import;
+use crate::labeller::Labeller;
 use crate::parser;
-use crate::parser::Statement::{Delete, Export, Import, Insert, Label, Select};
+use crate::parser::{OrderBy, Projection};
+use crate::parser::Statement::{AutoLabel, Delete, Export, Import, Insert, Label, Select};
 
 mod export;
 mod select;
@@ -32,6 +36,24 @@ pub(crate) fn parse_and_run_command(db: &mut Database, import_root_dir: &PathBuf
                     }
                     info!("\nLabel operations completed.")
                 }
+                AutoLabel(condition, is_run) => {
+                    if is_run {
+                        let transactions = db.query(None, Some(condition.clone()), OrderBy::date(), None);
+                        for t in transactions {
+                            db.apply_label_ops(t.id, LabelCommand::Auto, auto_label_rules_file);
+                        }
+                        let transactions = db.query(None, Some(condition), OrderBy::date(), None);                       
+                        select::process_projection(&Projection::Auto, None, &transactions);
+                    } else {
+                        let mut transactions = db.query(None, Some(condition), OrderBy::date(), None);
+                        let tagger = Labeller::new(&Config::load_from_file(auto_label_rules_file));
+                        for t in transactions.iter_mut() {
+                            let new_labels = tagger.label(&t.description);
+                            t.labels = new_labels;
+                        }
+                        select::process_projection(&Projection::Auto, None, &transactions);
+                    }
+                },
                 Insert(account, records) => {
                     let records_count = insert::execute_insert(db, account, records);
                     info!("\n{records_count} transactions inserted.");

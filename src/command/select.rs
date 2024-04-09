@@ -40,7 +40,7 @@ pub(crate) fn run_select(
 }
 
 /// Print outputs based on select projection, e.g. SELECT *, SELECT SUM(*), etc
-fn process_projection(projection: &Projection, group_by: Option<GroupBy>, transactions: &[Transaction]) {
+pub(crate) fn process_projection(projection: &Projection, group_by: Option<GroupBy>, transactions: &[Transaction]) {
     let mut table = Table::new();
     table.remove_style(TableComponent::HorizontalLines);
     table.remove_style(TableComponent::MiddleIntersections);
