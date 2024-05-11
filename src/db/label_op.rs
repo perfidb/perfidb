@@ -7,7 +7,7 @@ use nom::multi::many1;
 use nom::sequence::delimited;
 use crate::parser::non_space1;
 
-/// Represent a labelling command. Currently supporting two types of command.
+/// Represent a labelling command. Currently supporting two types of operations.
 /// Manual - manually specifying a list of add / remove labels.
 /// Auto - use auto labelling rule defined in config file.
 #[derive(PartialEq, Debug, Clone)]

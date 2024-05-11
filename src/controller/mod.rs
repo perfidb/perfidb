@@ -3,7 +3,6 @@ use log::info;
 use crate::config::Config;
 use crate::db::Database;
 use crate::db::label_op::LabelCommand;
-use crate::import;
 use crate::labeller::Labeller;
 use crate::parser;
 use crate::parser::{OrderBy, Projection};
@@ -12,6 +11,7 @@ use crate::parser::Statement::{AutoLabel, Delete, Export, Import, Insert, Label,
 mod export;
 mod select;
 mod insert;
+mod import;
 
 pub(crate) fn parse_and_run_command(db: &mut Database, import_root_dir: &PathBuf, sql: String, auto_label_rules_file: &str) -> Result<(), String> {
     // First use our own parser to parse

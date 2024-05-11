@@ -28,8 +28,7 @@ mod labeller;
 mod live_edit;
 mod editor;
 mod util;
-mod import;
-mod command;
+mod controller;
 mod parser;
 
 #[derive(Parser)]
@@ -143,7 +142,7 @@ fn main() {
                     // Remove leading and trailing space and semicolon
                     let pattern :&[_] = &[' ', ';'];
                     let sql = sql.trim_matches(pattern).to_string();
-                    let result = command::parse_and_run_command(&mut db, &import_root_dir, sql, &auto_label_rules_file);
+                    let result = controller::parse_and_run_command(&mut db, &import_root_dir, sql, &auto_label_rules_file);
 
                     if let Err(err) = result {
                         error!("{}", err);
