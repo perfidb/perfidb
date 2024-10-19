@@ -30,6 +30,7 @@ mod editor;
 mod util;
 mod controller;
 mod parser;
+mod tokeniser;
 
 #[derive(Parser)]
 #[command(author, version, about)]
