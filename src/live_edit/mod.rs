@@ -17,16 +17,16 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_l
     execute!(stdout(), EnterAlternateScreen, MoveTo(0, 0))?;
     terminal::enable_raw_mode()?;
     // TODO: handle terminal resize
-    let (_columns, rows) = terminal::size()?;
+    let (_cols, rows) = terminal::size()?;
 
     let mut window = Window {
-        rows,
+        rows: rows as usize,
         transactions_count: transactions.len(),
         offset: 0,
-        selected_row: 0
+        focused_row: 0
     };
 
-    repaint_window(window.repaint(), &transactions, window.selected_row);
+    repaint_window(window.repaint(), &transactions, window.focused_row);
 
     loop {
         // `read()` blocks until an `Event` is available
@@ -39,14 +39,14 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_l
                         'q' => break,
                         'j' => {
                             let delta = window.move_down();
-                            repaint_window(delta, &transactions, window.selected_row);
+                            repaint_window(delta, &transactions, window.focused_row);
                         },
                         'k' => {
                             let delta = window.move_up();
-                            repaint_window(delta, &transactions, window.selected_row);
+                            repaint_window(delta, &transactions, window.focused_row);
                         },
                         'l' => {
-                            execute!(stdout(), MoveTo(114, window.selected_row)).unwrap();
+                            execute!(stdout(), MoveTo(114, window.focused_row as u16)).unwrap();
                             terminal::disable_raw_mode().unwrap();
                             let mut new_labels = String::new();
                             std::io::stdin().read_line(&mut new_labels)?;
@@ -59,8 +59,8 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_l
 
                             transactions[window.selected_transaction_index()].labels = db.find_by_id(trans_id).labels;
                             terminal::enable_raw_mode().unwrap();
-                            repaint_window(vec![(window.selected_row, window.offset + window.selected_row as usize, true)], &transactions, window.selected_row);
-                            execute!(stdout(), MoveTo(114, window.selected_row)).unwrap();
+                            repaint_window(vec![(window.focused_row, window.offset + window.focused_row as usize, true)], &transactions, window.focused_row);
+                            execute!(stdout(), MoveTo(114, window.focused_row as u16)).unwrap();
                         },
                         _ => {}
                     }
@@ -82,7 +82,7 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_l
 
 struct Window {
     /// Number of rows in this window
-    rows: u16,
+    rows: usize,
 
     /// Number of total transactions
     transactions_count: usize,
@@ -90,43 +90,43 @@ struct Window {
     /// Scrolling offset
     offset: usize,
 
-    /// The row that is selected. 0 <= selected_row < rows
-    selected_row: u16,
+    /// The row that has current cursor focus. 0 <= focused_row < rows
+    focused_row: usize,
 }
 
 impl Window {
     fn selected_transaction_index(&self) -> usize {
-        self.offset + self.selected_row as usize
+        self.offset + self.focused_row
     }
 
-    fn repaint(&mut self) -> Vec<(u16, usize, bool)> {
+    fn repaint(&mut self) -> Vec<(usize, usize, bool)> {
         let remaining_trans_count = self.transactions_count - self.offset;
         let print_trans_count :usize = if remaining_trans_count > self.rows as usize { self.rows as usize } else { remaining_trans_count };
-        let mut delta :Vec<(u16, usize, bool)> = vec![(0, 0, true)];
+        let mut delta :Vec<(usize, usize, bool)> = vec![(0, 0, true)];
         for i in 1..print_trans_count {
-            delta.push((i as u16, i, false));
+            delta.push((i, i, false));
         }
         delta
     }
 
-    fn move_down(&mut self) -> Vec<(u16, usize, bool)> {
-        if self.offset + self.selected_row as usize >= self.transactions_count - 1 {
+    fn move_down(&mut self) -> Vec<(usize, usize, bool)> {
+        if self.offset + self.focused_row >= self.transactions_count - 1 {
             return vec![];
         }
 
-        if self.selected_row < self.rows - 1 {
+        if self.focused_row < self.rows - 1 {
             let mut delta = vec![];
-            delta.push((self.selected_row, self.offset + self.selected_row as usize, false));
-            self.selected_row += 1;
-            delta.push((self.selected_row, self.offset + self.selected_row as usize, true));
+            delta.push((self.focused_row, self.offset + self.focused_row as usize, false));
+            self.focused_row += 1;
+            delta.push((self.focused_row, self.offset + self.focused_row as usize, true));
             delta
         } else {
             self.scroll_up()
         }
     }
 
-    fn scroll_up(&mut self) -> Vec<(u16, usize, bool)> {
-        if self.offset + self.rows as usize >= self.transactions_count {
+    fn scroll_up(&mut self) -> Vec<(usize, usize, bool)> {
+        if self.offset + self.rows >= self.transactions_count {
             return vec![];
         }
 
@@ -139,16 +139,16 @@ impl Window {
         delta
     }
 
-    fn move_up(&mut self) -> Vec<(u16, usize, bool)> {
-        if self.offset + self.selected_row as usize == 0 {
+    fn move_up(&mut self) -> Vec<(usize, usize, bool)> {
+        if self.offset + self.focused_row as usize == 0 {
             return vec![];
         }
 
-        if self.selected_row > 0 {
+        if self.focused_row > 0 {
             let mut delta = vec![];
-            delta.push((self.selected_row, self.offset + self.selected_row as usize, false));
-            self.selected_row -= 1;
-            delta.push((self.selected_row, self.offset + self.selected_row as usize, true));
+            delta.push((self.focused_row, self.offset + self.focused_row as usize, false));
+            self.focused_row -= 1;
+            delta.push((self.focused_row, self.offset + self.focused_row as usize, true));
 
             delta
         } else {
@@ -156,7 +156,7 @@ impl Window {
         }
     }
 
-    fn scroll_down(&mut self) -> Vec<(u16, usize, bool)> {
+    fn scroll_down(&mut self) -> Vec<(usize, usize, bool)> {
         if self.offset == 0 {
             return vec![];
         }
@@ -171,12 +171,12 @@ impl Window {
     }
 }
 
-fn repaint_window(delta: Vec<(u16, usize, bool)>, transactions: &[Transaction], selected_row: u16) {
+fn repaint_window(delta: Vec<(usize, usize, bool)>, transactions: &[Transaction], focused_row: usize) {
     for (row, trans_index, highlight) in delta {
-        execute!(stdout(), MoveTo(0, row), terminal::Clear(ClearType::CurrentLine)).unwrap();
+        execute!(stdout(), MoveTo(0, row as u16), terminal::Clear(ClearType::CurrentLine)).unwrap();
         print_transaction(&transactions[trans_index], highlight);
     }
-    execute!(stdout(), MoveTo(0, selected_row)).unwrap();
+    execute!(stdout(), MoveTo(0, focused_row as u16)).unwrap();
 }
 
 /// Print a single transaction, in current terminal line
