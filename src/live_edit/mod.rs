@@ -191,7 +191,8 @@ fn print_transaction(t: &Transaction, highlight: bool) {
     } else {
         t.description.clone()
     };
-    execute!(stdout(), style::Print(format!("| {:4} | {:14} | {} | {:50} | {:10} | {:15} |", t.id, t.account, t.date, desc, t.amount, t.tags_display())), MoveToColumn(0)).unwrap();
+    let amount = t.amount;
+    execute!(stdout(), style::Print(format!("| {:4} | {:14} | {} | {:50} | {:>10} | {:15} |", t.id, t.account, t.date, desc, format!("{amount:.2}"), t.tags_display())), MoveToColumn(0)).unwrap();
     if highlight {
         execute!(stdout(), SetForegroundColor(Color::White), SetBackgroundColor(Color::Black)).unwrap();
     }
