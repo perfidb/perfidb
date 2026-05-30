@@ -12,22 +12,13 @@ PerfiDB is a simple database engineered specifically to store and manage persona
 - Create issues in Github
 
 # Quick tour
-### Launch
-```bash
-perfidb
-```
-Database file will be created under `$HOME/.perfidb/finance.db`
 
-### Import transactions
-```sql
--- Import transactions to account 'amex' from a csv file
-IMPORT amex FROM 'bank-exports/2022-03.csv';
-```
-
-### Query
 ```sql    
 -- List all transactions
 SELECT *;
+
+-- List transactions in February
+SELECT * WHERE month = 2;
 
 -- List all spending from account 'amex'
 SELECT spending FROM amex;
@@ -35,62 +26,52 @@ SELECT spending FROM amex;
 -- List all spending with the word 'paypal' in description
 SELECT spending WHERE description = 'paypal';
 
--- Add two labels (grocery, bread) to transaction 128
-LABEL 128 grocery bread;
-
 -- List all transactions labelled with 'grocery'.
 SELECT * WHERE label = 'grocery';
 ```
 
 # User guide
-## Install
-### Install on macOS
-```
-brew install perfidb/tap/perfidb
-```
 
-### Linux & Windows
-Install script will be published in near future. Please build form source for now.
+## Install
+You will have to compile from source, pre-built executable will be provided in the future.
+
+Run `cargo build --release` to compile, and the binary will be under `target\release` dir.
 
 ## Launch
+Keep all your bank exports in a root directory, one account per sub-directory, e.g.
 ```
-perfidb
-```
-By default the database file will be created under `$HOME/.perfidb/finance.db`. To specify a different location
-you can run:
-```
-perfidb -f myfinance.db
+~/bank-exports
+├── amex
+│   ├── 2025-01.csv
+│   └── 2025-02.csv
+└── saving
+    ├── 2025-01.csv
+    └── 2025-02.csv
 ```
 
-### Exit
+```bash
+perfidb --import-root-dir ~/bank-exports
+```
+
+By default, the database file will be created under `$HOME/.perfidb/finance.db`, use `-f` option to specify a different location.
+
+## Import transactions
+
+```sql
+IMPORT;
+```
+
+This will scan all csv files under the import directory and only import new files. The import operation is idempotent, so you can keep adding next month's export in and re-run import, previous imported files will not be re-processed.
+
+Use `IMPORT (dryrun)` to inspect new csv files' transactions without importing them. Use `IMPORT (inverse)` to negate the amount, i.e. treating positive amount as spending and negative as income. If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
+
+
+## Exit
 To exit PerfiDB you can either press `Ctrl + C` or type in the command `exit` 
 
 ## Running a query
 A query should end with a semicolon `;`. A query can extend to multiple lines, the last line has to end with a semicolon.
 
-## Import transactions
-To import transactions from a csv file into account _amex-gold_
-```sql
-IMPORT amex-gold FROM 'bank-exports/2022-03.csv';
-```
-
-To print out records from csv file without actually saving to database, specify dry-run:
-```sql
-IMPORT amex-gold FROM 'bank-exports/2022-03.csv' (dryrun);
-```
-
-If you are wondering how are CSV files parsed, see _How are CSV files parsed_ section below.
-
-## Spending & Income
-By default transactions with negative amount (e.g. -35.7) is considered as _spending_ and transactions with 
-positive amount _income_. Some bank statements are the opposite, e.g. American Express. When important statements
-with positive amount (e.g. 50.95) as spending you need to specify the `inverse` flag, e.g.
-```sql
-IMPORT amex FROM 'bank-exports/2022-03.csv' (inverse);
-
--- You can also add dryrun option to check the amount before importing
-IMPORT amex FROM 'bank-exports/2022-03.csv' (inverse dryrun);    
-```
 
 ## Export transactions
 To export all transactions to a CSV file
@@ -119,7 +100,7 @@ SELECT spending;
 SELECT income;
 ```
 
-### From specific account
+### From a specific account
 ```sql
 SELECT * FROM amex;
 ```
@@ -129,10 +110,10 @@ SELECT * FROM amex;
 ```sql
 -- Filter by month, i.e. 7 means July. If current date has passed July it means July of current year,
 -- if current date is before end of July it means July of previous year.
-SELECT * WHERE date = 7;
+SELECT * WHERE month = 7;
 
--- Filter by month
-SELECT * WHERE date = 2022-07;
+-- Filter by year
+SELECT * WHERE year = 2025;
 
 -- Filter by date
 SELECT * WHERE date = 2022-07-31;
@@ -206,7 +187,6 @@ INSERT INTO amex VALUES
 -- delete by transaction ids
 DELETE 345 346;
 ```
-
 
 ## Live mode
 Sometimes you might want to label transactions directly as if operating a spreadsheet, without using SQL. The **live** mode allows you to do exactly that. To switch to live mode, type command `live`, without semicolon.
