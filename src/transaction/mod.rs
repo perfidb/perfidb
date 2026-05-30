@@ -39,6 +39,7 @@ impl Transaction {
 /// We use amount's absolute value because sometimes we need to deal with inverted amount,
 /// e.g. in the statement we have $96 but the same transaction already imported had -$96,
 /// if both transactions have the same date and description we want the hash to be the same.
+#[allow(dead_code)]
 pub(crate) fn transaction_hash(datetime: NaiveDateTime, description: &str, amount: f32) -> u64 {
     let mut hasher = DefaultHasher::new();
     hasher.write_i64(datetime.and_utc().timestamp());

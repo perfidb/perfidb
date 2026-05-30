@@ -1,8 +1,8 @@
-use nom::bytes::complete::{tag_no_case};
-use nom::IResult;
-use nom::multi::many1;
-use crate::db::label_op::{parse_label_command};
+use crate::db::label_op::parse_label_command;
 use crate::parser::{space_comma1, Statement};
+use nom::bytes::complete::tag_no_case;
+use nom::multi::many1;
+use nom::IResult;
 
 /// Parse `LABEL trans_id, trans_id 'label'` pattern.
 pub(crate) fn parse_label(input: &str) -> IResult<&str, Statement> {
@@ -25,8 +25,8 @@ fn parse_trans_id(input: &str) -> IResult<&str, u32> {
 #[cfg(test)]
 mod tests {
     use crate::db::label_op::{LabelCommand, LabelOp};
-    use crate::parser::{Operator, Statement};
     use crate::parser::label::parse_label;
+    use crate::parser::Statement;
 
     #[test]
     fn test() {

@@ -23,7 +23,7 @@ impl PerfidbRoaringBitmap {
         self.0.remove(value)
     }
 
-    pub(crate) fn iter(&self) -> Iter {
+    pub(crate) fn iter(&self) -> Iter<'_> {
         self.0.iter()
     }
 }

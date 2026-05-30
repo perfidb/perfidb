@@ -3,7 +3,6 @@ mod minhash;
 mod roaring_bitmap;
 mod label_id_vec;
 pub(crate) mod label_op;
-pub(crate) mod shadow;
 
 use std::fs;
 use std::collections::{BTreeMap, HashMap, HashSet};

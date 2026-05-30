@@ -30,7 +30,7 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_l
 
     loop {
         // `read()` blocks until an `Event` is available
-        match read().unwrap() {
+        match read()? {
             Event::FocusGained => println!("FocusGained"),
             Event::FocusLost => println!("FocusLost"),
             Event::Key(event) => {
@@ -67,10 +67,8 @@ pub(crate) fn live_label(last_query_results: Vec<u32>, db: &mut Database, auto_l
                 }
             },
             Event::Mouse(event) => println!("{:?}", event),
-            #[cfg(feature = "bracketed-paste")]
-            Event::Paste(data) => println!("{:?}", data),
-            Event::Resize(width, height) => println!("New size {}x{}", width, height),
             Event::Paste(s) => println!("{}", s),
+            Event::Resize(width, height) => println!("New size {}x{}", width, height),
         }
     }
 

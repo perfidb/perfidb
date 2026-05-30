@@ -19,7 +19,6 @@ extern crate core;
 use crate::config::Config;
 use crate::db::Database;
 
-mod common;
 mod db;
 mod csv_reader;
 mod transaction;

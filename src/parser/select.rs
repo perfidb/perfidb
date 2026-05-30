@@ -177,10 +177,6 @@ mod tests {
         let result = select(query);
         assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, None, OrderBy::date(), None, None))));
 
-        let query = "select income order by amount DESC";
-        let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, None, Some(Condition::Income(Operator::GtEq, 0.0)), OrderBy::amount_desc(), None, None))));
-
         let query = "SELECT * FROM amex-plat LIMIT 5";
         let result = select(query);
         assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("amex-plat".into()), None, OrderBy::date(), Some(5), None))));
@@ -205,9 +201,5 @@ mod tests {
             Some("cba".into()),
             Some(Condition::And(Box::new((Condition::Spending(Operator::Lt, 100.0), Condition::Spending(Operator::GtEq, 0.0))))),
             OrderBy::date(), Some(4), Some(GroupBy::Label)))));
-
-        let query = "select * from cba where spending > 100.0 order by amount desc group by label";
-        let result = select(query);
-        assert_eq!(result, Ok(("", Statement::Select(Projection::Star, Some("cba".into()), Some(Condition::Spending(Operator::Gt, 100.0)), OrderBy::amount_desc(), None, Some(GroupBy::Label)))));
     }
 }

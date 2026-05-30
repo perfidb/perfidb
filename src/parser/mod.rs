@@ -60,7 +60,6 @@ pub(crate) enum Projection {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum GroupBy {
-    None,
     Label,
 }
 
@@ -95,13 +94,6 @@ impl OrderBy {
         OrderBy {
             field: OrderByField::Date,
             desc: false
-        }
-    }
-
-    pub(crate) fn amount_desc() -> OrderBy {
-        OrderBy {
-            field: OrderByField::Amount,
-            desc: true
         }
     }
 }
