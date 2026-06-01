@@ -19,7 +19,6 @@ lazy_static! {
     };
 }
 
-#[allow(dead_code)]
 pub(crate) fn tokenise(text: &str) -> Vec<String> {
     let normaliser = BertNormalizer::new(true, true, None, true);
     let mut normalised = NormalizedString::from(text);

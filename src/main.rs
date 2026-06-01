@@ -127,6 +127,16 @@ fn main() {
                             }
                             continue;
                         }
+                        "reprocess" | "reprocess dryrun" => {
+                            let dry_run = line.eq_ignore_ascii_case("reprocess dryrun");
+                            if let Some(last_results) = &db.last_query_results {
+                                let ids = last_results.clone();
+                                controller::reprocess::run(&mut db, &ids, dry_run);
+                            } else {
+                                info!("No recent select results");
+                            }
+                            continue;
+                        }
                         _ => {}
                     }
                 }

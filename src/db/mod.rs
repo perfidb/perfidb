@@ -442,6 +442,20 @@ impl Database {
         self.transactions.get(&id).map(|t| self.to_transaction(t))
     }
 
+    /// Re-index the given transactions' descriptions using the current tokeniser, then persist.
+    /// Returns the number of transactions re-indexed.
+    pub(crate) fn reprocess(&mut self, ids: &[u32]) -> usize {
+        let mut count = 0;
+        for id in ids {
+            if let Some(t) = self.transactions.get(id) {
+                self.search_index.reindex(t.id, &t.description);
+                count += 1;
+            }
+        }
+        self.save();
+        count
+    }
+
     pub(crate) fn delete(&mut self, ids: &[u32]) -> u32 {
         let mut trans_deleted: u32 = 0;
         for trans_id in ids {

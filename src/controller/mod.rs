@@ -12,6 +12,7 @@ mod export;
 mod select;
 mod insert;
 mod import;
+pub(crate) mod reprocess;
 
 pub(crate) fn parse_and_run_command(db: &mut Database, import_root_dir: &PathBuf, sql: String, auto_label_rules_file: &str) -> Result<(), String> {
     // First use our own parser to parse
